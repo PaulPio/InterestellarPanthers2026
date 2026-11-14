@@ -10,8 +10,10 @@ Group=ccm
 EnvironmentFile=/etc/ccm/ccm.env
 Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=/var/lib/ccm
-ExecStart=/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --broker 127.0.0.1:1883
-Restart=on-failure
+# --no-cabin: the real cabin node publishes as C1; a simulated C1 would collide with it.
+# The scenario lasts 24 h and then exits, so restart it whatever the exit code.
+ExecStart=/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --no-cabin --broker 127.0.0.1:1883
+Restart=always
 RestartSec=5s
 
 [Install]

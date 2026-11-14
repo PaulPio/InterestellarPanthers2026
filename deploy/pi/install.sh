@@ -21,13 +21,14 @@ CCM_USER="ccm"
 CCM_HOME="/var/lib/ccm"
 CCM_OPT="/opt/ccm"
 CCM_ETC="/etc/ccm"
+CCM_SRC="$CCM_OPT/src"
 VENV="$CCM_OPT/venv"
 
 echo "Installing from $REPO_ROOT"
 
 $SUDO apt-get update
 $SUDO apt-get install -y --no-install-recommends \
-  mosquitto mosquitto-clients chrony python3-venv git
+  mosquitto mosquitto-clients chrony python3-venv git rsync
 
 if ! id -u "$CCM_USER" >/dev/null 2>&1; then
   $SUDO useradd --system --home-dir "$CCM_HOME" \
@@ -41,10 +42,17 @@ if [ ! -x "$VENV/bin/python" ]; then
 fi
 $SUDO "$VENV/bin/python" -m pip install --quiet --upgrade pip
 
-# Editable installs: ccm_sim locates its scenarios, params and the contracts
-# directory relative to its source tree, so the checkout must stay in place.
+# Copy the code to /opt/ccm/src. The checkout usually lives in a home folder, which is private
+# on Bookworm, so the ccm service user could not read it there. Rerun this script after a pull.
+$SUDO install -d "$CCM_SRC"
+$SUDO rsync -a --delete \
+  --exclude .git --exclude .venv --exclude .worktrees --exclude node_modules \
+  --exclude data --exclude 'firmware/**/secrets.h' \
+  "$REPO_ROOT/" "$CCM_SRC/"
+# Editable installs: ccm_sim locates its scenarios, params and the contracts directory
+# relative to its source tree, so it must be installed from a source tree, not a wheel.
 $SUDO "$VENV/bin/python" -m pip install --quiet \
-  --editable "$REPO_ROOT/sim" --editable "$REPO_ROOT/gateway"
+  --editable "$CCM_SRC/sim" --editable "$CCM_SRC/gateway"
 
 if [ -d "$REPO_ROOT/dashboard/dist" ]; then
   $SUDO install -d "$CCM_OPT/dashboard"
@@ -78,9 +86,19 @@ $SUDO systemctl daemon-reload
 $SUDO systemctl enable mosquitto chrony
 $SUDO systemctl restart mosquitto chrony
 $SUDO systemctl enable ccm-ingest.service ccm-analytics.service \
-  ccm-api.service ccm-uplink.service ccm-sim-crew.service
+  ccm-api.service ccm-sim-crew.service
 
-for unit in ccm-ingest ccm-analytics ccm-api ccm-uplink ccm-sim-crew; do
+# The uplink runs only once CCM_UPLINK_URL is set; otherwise it would fail and restart forever.
+units="ccm-ingest ccm-analytics ccm-api ccm-sim-crew"
+if $SUDO grep -Eq '^CCM_UPLINK_URL=.+' "$CCM_ETC/ccm.env"; then
+  $SUDO systemctl enable ccm-uplink.service
+  units="$units ccm-uplink"
+else
+  $SUDO systemctl disable --now ccm-uplink.service >/dev/null 2>&1 || true
+  echo "Uplink left off: CCM_UPLINK_URL is blank in $CCM_ETC/ccm.env."
+fi
+
+for unit in $units; do
   $SUDO systemctl restart "$unit.service" ||
     echo "warning: $unit did not start; check journalctl -u $unit"
 done

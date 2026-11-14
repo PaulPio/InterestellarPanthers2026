@@ -70,15 +70,20 @@ The installer:
 
 - installs `mosquitto`, `mosquitto-clients`, `chrony`, `python3-venv` and `git`;
 - creates the system user `ccm` and `/var/lib/ccm` for the database;
-- creates `/opt/ccm/venv` and installs `sim` and `gateway` from this checkout;
+- copies the code to `/opt/ccm/src` (the `ccm` service user cannot read a private home folder),
+  creates `/opt/ccm/venv` and installs `sim` and `gateway` from that copy;
 - copies `dashboard/dist` to `/opt/ccm/dashboard/dist` when it exists;
 - installs the broker and chrony configs, and the systemd units;
 - creates `/etc/ccm/ccm.env` and `/etc/ccm/hotspot.env` from the examples when they do not exist;
-- enables and (re)starts mosquitto, chrony and the five CCM services.
+- enables and (re)starts mosquitto, chrony and the CCM services. The uplink is enabled only once
+  `CCM_UPLINK_URL` is set in `/etc/ccm/ccm.env`.
 
-It is safe to run again after a `git pull`. The Python packages are installed in editable mode
-because the simulator finds its scenarios, parameters and the `contracts/` directory relative to the
-checkout, so keep the repository where it is.
+Rerun it after every `git pull`: that is what copies the new code to `/opt/ccm/src`. The packages
+are installed in editable mode from that copy because the simulator finds its scenarios, parameters
+and the `contracts/` directory relative to its source tree.
+
+`ccm-sim-crew` publishes simulated crew W1 to W3 with `--no-cabin`, so the real cabin node is the
+only source of cabin data. Without a cabin node connected, the cabin cards show no data.
 
 ## 6. Configure the hotspot
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import logging
 
 from ccm_gateway.config import Settings, load_settings
 from ccm_gateway.db import connect
@@ -16,6 +17,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("ingest", help="subscribe to MQTT and store messages")
     sub.add_parser("analytics", help="keep baselines, risk cards and the status snapshot")
     args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     settings = load_settings()
     if args.command == "api":
         _serve(settings)
