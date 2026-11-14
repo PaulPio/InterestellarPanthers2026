@@ -12,7 +12,7 @@ SPEED ?= 60
 BROKER ?= localhost:1883
 REPLAY ?=
 
-.PHONY: setup lint test gateway-check contracts types dashboard-check check sim-eval build serve-mock demo-mock demo-live dashboard-dev desktop desktop-dist desktop-check e2e check-all clean
+.PHONY: setup lint test gateway-check cloud-check contracts types dashboard-check check sim-eval build serve-mock demo-mock demo-live dashboard-dev desktop desktop-dist desktop-check e2e check-all clean
 
 setup:
 	$(PYTHON) -m venv $(VENV)
@@ -33,6 +33,12 @@ gateway-check:
 	cd gateway && ../$(VBIN)/mypy
 	cd gateway && ../$(VBIN)/python -m pytest -q
 
+# The public API for Vercel: imported from the tree, so sim/src goes on the path.
+cloud-check:
+	cd cloud && ../$(VBIN)/ruff check . ../api && ../$(VBIN)/ruff format --check . ../api
+	cd cloud && ../$(VBIN)/mypy
+	cd cloud && ../$(VBIN)/python -m pytest -q
+
 contracts:
 	$(VBIN)/python -m ccm_sim.contracts
 
@@ -46,7 +52,7 @@ dashboard-check:
 desktop-check:
 	cd $(DESK) && npm test
 
-check: contracts lint test gateway-check dashboard-check desktop-check
+check: contracts lint test gateway-check cloud-check dashboard-check desktop-check
 
 sim-eval:
 	$(VBIN)/ccm-sim scenarios check
