@@ -1,0 +1,37 @@
+"""Gateway settings, read from ``CCM_*`` environment variables."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Settings:
+    db_path: Path
+    mqtt_host: str
+    mqtt_port: int
+    api_host: str
+    api_port: int
+    dashboard_dist: Path
+    raw_retention_days: int
+    uplink_url: str | None
+    uplink_key: str | None
+    uplink_period_s: float
+
+
+def load_settings() -> Settings:
+    env = os.environ.get
+    return Settings(
+        db_path=Path(env("CCM_DB", "data/ccm.sqlite3")),
+        mqtt_host=env("CCM_MQTT_HOST", "127.0.0.1"),
+        mqtt_port=int(env("CCM_MQTT_PORT", "1883")),
+        api_host=env("CCM_API_HOST", "127.0.0.1"),
+        api_port=int(env("CCM_API_PORT", "8000")),
+        dashboard_dist=Path(env("CCM_DASHBOARD_DIST", "dashboard/dist")),
+        raw_retention_days=int(env("CCM_RAW_RETENTION_DAYS", "7")),
+        uplink_url=env("CCM_UPLINK_URL") or None,
+        uplink_key=env("CCM_UPLINK_KEY") or None,
+        uplink_period_s=float(env("CCM_UPLINK_PERIOD_S", "10")),
+    )
