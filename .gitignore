@@ -18,3 +18,8 @@ test-results/
 # Secrets
 .env
 .env.*
+# Local agent and device secrets
+opencode.json
+firmware/**/secrets.h
+# Agent worktrees
+.worktrees/
