@@ -255,19 +255,27 @@ def _bucket(metric: str, hour: int) -> str:
 def _expected(
     conn: sqlite3.Connection, subject: str, metric: str, t: float, p: Params
 ) -> tuple[float, float, int] | None:
-    """The baseline for this time of day, or the overall baseline until a day has been seen.
+    """The baseline for this time of day.
 
     People run on a daily rhythm, so each hour of the day keeps its own baseline. The value is
-    interpolated between the two nearest hour buckets to avoid a step on the hour.
+    interpolated between the two nearest hour buckets to avoid a step on the hour. On the first
+    day the next hour has not been seen yet, so whichever neighbour is ready is used alone; the
+    overall baseline is the last resort, because it hides the daily swing.
     """
-    overall = _baseline(conn, subject, metric)
     pos = (t % 86400) / 3600.0 - 0.5  # bucket centres sit on the half hour
     lo_h = math.floor(pos)
     frac = pos - lo_h
     lo = _baseline(conn, subject, _bucket(metric, lo_h))
     hi = _baseline(conn, subject, _bucket(metric, lo_h + 1))
-    if lo is None or hi is None or lo[2] < p.bucket_min_n or hi[2] < p.bucket_min_n:
-        return overall
+    lo_ok = lo is not None and lo[2] >= p.bucket_min_n
+    hi_ok = hi is not None and hi[2] >= p.bucket_min_n
+    if not (lo_ok and hi_ok):
+        if lo_ok:
+            return lo
+        if hi_ok:
+            return hi
+        return _baseline(conn, subject, metric)
+    assert lo is not None and hi is not None
     mean = lo[0] * (1 - frac) + hi[0] * frac
     var = lo[1] * (1 - frac) + hi[1] * frac
     return mean, var, min(lo[2], hi[2])
