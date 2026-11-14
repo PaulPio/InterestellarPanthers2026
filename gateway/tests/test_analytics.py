@@ -171,7 +171,8 @@ def test_partial_hardware_messages_do_not_break_the_status(conn: sqlite3.Connect
         for i in range(6):
             t = T0 + m * 60 + i * 10
             conn.execute(
-                "INSERT INTO raw_cabin (id, seq, t_meas, src, t_recv, c10s) VALUES ('C1',?,?,'hw',?,2)",
+                "INSERT INTO raw_cabin (id, seq, t_meas, src, t_recv, c10s) "
+                "VALUES ('C1',?,?,'hw',?,2)",
                 (m * 6 + i, t, t),
             )
         add_sample(conn, T0 + m * 60, "C1", "cpm", 12.0)
