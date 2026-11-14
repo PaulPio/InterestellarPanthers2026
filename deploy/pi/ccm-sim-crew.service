@@ -1,0 +1,18 @@
+[Unit]
+Description=CCM simulated crew (until the wearable exists)
+After=network-online.target mosquitto.service
+Wants=network-online.target mosquitto.service
+
+[Service]
+Type=simple
+User=ccm
+Group=ccm
+EnvironmentFile=/etc/ccm/ccm.env
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/var/lib/ccm
+ExecStart=/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --broker 127.0.0.1:1883
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=CCM gateway Earth uplink
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ccm
+Group=ccm
+EnvironmentFile=/etc/ccm/ccm.env
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/var/lib/ccm
+ExecStart=/opt/ccm/venv/bin/ccm-gateway uplink
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
