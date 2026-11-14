@@ -25,3 +25,6 @@ firmware/**/secrets.h
 .worktrees/
 # Vercel CLI
 .vercel
+
+.vercel
+.env*
