@@ -14,6 +14,6 @@ for path in (ROOT / "sim" / "src", ROOT / "cloud"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from ccm_cloud.app import create_app
+from ccm_cloud.app import create_app  # noqa: E402  (needs the sys.path lines above)
 
 app = create_app()
