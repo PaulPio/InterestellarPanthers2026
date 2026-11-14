@@ -35,9 +35,8 @@ def _settings(tmp_path: Path) -> Settings:
         api_port=8000,
         dashboard_dist=tmp_path / "dist",
         raw_retention_days=7,
-        uplink_url=None,
-        uplink_key=None,
-        uplink_period_s=10.0,
+        public_port=8001,
+        public_key=None,
     )
 
 

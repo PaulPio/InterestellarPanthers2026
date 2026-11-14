@@ -17,7 +17,7 @@ authentication, and an NTP server on the same address (`firmware/ccm_cabin_node/
 | `hotspot.env.example` | Template for `/etc/ccm/hotspot.env` (SSID and password) |
 | `chrony-ccm.conf` | Serves time to `192.168.4.0/24` |
 | `ccm.env.example` | Template for `/etc/ccm/ccm.env` (every `CCM_*` setting) |
-| `ccm-*.service` | Five systemd units: ingest, analytics, API, uplink, simulated crew |
+| `ccm-*.service` | Five systemd units: ingest, analytics, API, public read-only API, simulated crew |
 | `README.md` | This runbook |
 
 ## 1. Before you start
@@ -75,8 +75,8 @@ The installer:
 - copies `dashboard/dist` to `/opt/ccm/dashboard/dist` when it exists;
 - installs the broker and chrony configs, and the systemd units;
 - creates `/etc/ccm/ccm.env` and `/etc/ccm/hotspot.env` from the examples when they do not exist;
-- enables and (re)starts mosquitto, chrony and the CCM services. The uplink is enabled only once
-  `CCM_UPLINK_URL` is set in `/etc/ccm/ccm.env`.
+- enables and (re)starts mosquitto, chrony and the CCM services. The public API is enabled only
+  once `CCM_PUBLIC_KEY` is set in `/etc/ccm/ccm.env` (section 9).
 
 Rerun it after every `git pull`: that is what copies the new code to `/opt/ccm/src`. The packages
 are installed in editable mode from that copy because the simulator finds its scenarios, parameters
@@ -113,7 +113,7 @@ In `firmware/ccm_cabin_node/`:
 Services:
 
 ```bash
-systemctl status ccm-ingest ccm-analytics ccm-api ccm-uplink ccm-sim-crew
+systemctl status ccm-ingest ccm-analytics ccm-api ccm-public ccm-sim-crew
 journalctl -u ccm-api -n 50 --no-pager
 ```
 
@@ -140,6 +140,39 @@ ss -ltnp | grep -E '1883|8000'
 
 Open `http://192.168.4.1:8000/` from a phone or laptop joined to your hotspot.
 
+## 9. Put the Pi's data on the public website (optional)
+
+The Pi keeps the only database. The public site on Vercel reads it through a second, read-only
+API (`ccm-gateway public`, port 8001, loopback only) that Tailscale Funnel publishes at a stable
+HTTPS address. Tailscale's free Personal plan includes Funnel; you need no domain and no router
+port forwarding. The Pi needs internet for this, so use Ethernet or a USB WiFi adapter
+(`wlan0` is the hotspot).
+
+1. Pick a key and set it on the Pi:
+
+   ```bash
+   python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+   sudo nano /etc/ccm/ccm.env          # CCM_PUBLIC_KEY=<that key>
+   sudo deploy/pi/install.sh           # enables and starts ccm-public
+   curl -s -H "Authorization: Bearer <key>" http://127.0.0.1:8001/api/status | head -c 200; echo
+   ```
+
+2. Install Tailscale, log in, and publish port 8001:
+
+   ```bash
+   curl -fsSL https://tailscale.com/install.sh | sh
+   sudo tailscale up                   # opens a login link
+   sudo tailscale funnel --bg 8001     # the first time, it links to enable Funnel for the tailnet
+   tailscale funnel status             # shows https://<pi-name>.<tailnet>.ts.net
+   ```
+
+3. On Vercel, set `CCM_PI_URL` to that `https://...ts.net` address and `CCM_PI_KEY` to the same
+   key, then redeploy (`deploy/cloud/README.md`).
+
+The public API answers only `GET /api/*` with the right key, so nobody on the internet can
+approve, check in or change settings. When the Pi is off, the website falls back to its
+simulator demo.
+
 ## Services
 
 | Unit | Command | Runs as |
@@ -147,10 +180,10 @@ Open `http://192.168.4.1:8000/` from a phone or laptop joined to your hotspot.
 | `ccm-ingest.service` | `/opt/ccm/venv/bin/ccm-gateway ingest` | `ccm` |
 | `ccm-analytics.service` | `/opt/ccm/venv/bin/ccm-gateway analytics` | `ccm` |
 | `ccm-api.service` | `/opt/ccm/venv/bin/ccm-gateway api` | `ccm` |
-| `ccm-uplink.service` | `/opt/ccm/venv/bin/ccm-gateway uplink` | `ccm` |
-| `ccm-sim-crew.service` | `/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --broker 127.0.0.1:1883` | `ccm` |
+| `ccm-public.service` | `/opt/ccm/venv/bin/ccm-gateway public` (only when `CCM_PUBLIC_KEY` is set) | `ccm` |
+| `ccm-sim-crew.service` | `/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --no-cabin --broker 127.0.0.1:1883` | `ccm` |
 
-All units read `/etc/ccm/ccm.env` and restart on failure.
+All units read `/etc/ccm/ccm.env`. They restart on failure; `ccm-sim-crew` restarts always, because its 24-hour scenario ends.
 
 ## Settings
 
@@ -164,9 +197,9 @@ All units read `/etc/ccm/ccm.env` and restart on failure.
 | `CCM_API_HOST` / `CCM_API_PORT` | `0.0.0.0` / `8000` |
 | `CCM_DASHBOARD_DIST` | `/opt/ccm/dashboard/dist` |
 | `CCM_RAW_RETENTION_DAYS` | `7` |
-| `CCM_UPLINK_URL` / `CCM_UPLINK_KEY` / `CCM_UPLINK_PERIOD_S` | blank / blank / `10` |
+| `CCM_PUBLIC_PORT` / `CCM_PUBLIC_KEY` | `8001` / blank |
 
-The Earth uplink stays disabled while `CCM_UPLINK_URL` is blank.
+The public API stays off while `CCM_PUBLIC_KEY` is blank.
 
 `/etc/ccm/hotspot.env` holds the hotspot SSID, password, interface, address and connection name.
 Both files are mode 600.

@@ -1,5 +1,5 @@
 [Unit]
-Description=CCM gateway Earth uplink
+Description=CCM read-only public API (reached through Tailscale Funnel)
 After=network-online.target
 Wants=network-online.target
 
@@ -10,7 +10,7 @@ Group=ccm
 EnvironmentFile=/etc/ccm/ccm.env
 Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=/var/lib/ccm
-ExecStart=/opt/ccm/venv/bin/ccm-gateway uplink
+ExecStart=/opt/ccm/venv/bin/ccm-gateway public
 Restart=on-failure
 RestartSec=5s
 

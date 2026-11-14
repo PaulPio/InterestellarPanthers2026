@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ccm-gateway"
 version = "0.1.0"
-description = "Crew Context Monitor gateway: MQTT ingest, analytics, API and cloud uplink for the Pi"
+description = "Crew Context Monitor gateway for the Pi: MQTT ingest, analytics, local and public APIs"
 requires-python = ">=3.11"
 dependencies = [
   "ccm-sim",

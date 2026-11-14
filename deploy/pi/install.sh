@@ -88,14 +88,16 @@ $SUDO systemctl restart mosquitto chrony
 $SUDO systemctl enable ccm-ingest.service ccm-analytics.service \
   ccm-api.service ccm-sim-crew.service
 
-# The uplink runs only once CCM_UPLINK_URL is set; otherwise it would fail and restart forever.
+# The public API runs only once CCM_PUBLIC_KEY is set; without a key it refuses to start.
 units="ccm-ingest ccm-analytics ccm-api ccm-sim-crew"
-if $SUDO grep -Eq '^CCM_UPLINK_URL=.+' "$CCM_ETC/ccm.env"; then
-  $SUDO systemctl enable ccm-uplink.service
-  units="$units ccm-uplink"
+$SUDO systemctl disable --now ccm-uplink.service >/dev/null 2>&1 || true  # replaced by ccm-public
+$SUDO rm -f /etc/systemd/system/ccm-uplink.service
+if $SUDO grep -Eq '^CCM_PUBLIC_KEY=.+' "$CCM_ETC/ccm.env"; then
+  $SUDO systemctl enable ccm-public.service
+  units="$units ccm-public"
 else
-  $SUDO systemctl disable --now ccm-uplink.service >/dev/null 2>&1 || true
-  echo "Uplink left off: CCM_UPLINK_URL is blank in $CCM_ETC/ccm.env."
+  $SUDO systemctl disable --now ccm-public.service >/dev/null 2>&1 || true
+  echo "Public API left off: CCM_PUBLIC_KEY is blank in $CCM_ETC/ccm.env."
 fi
 
 for unit in $units; do

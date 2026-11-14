@@ -1,4 +1,4 @@
-"""Command line for the gateway: ``ccm-gateway api`` and ``ccm-gateway ingest``."""
+"""Command line for the gateway: ``ccm-gateway ingest | analytics | api | public``."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("api", help="serve the dashboard API")
     sub.add_parser("ingest", help="subscribe to MQTT and store messages")
     sub.add_parser("analytics", help="keep baselines, risk cards and the status snapshot")
+    sub.add_parser("public", help="serve the read-only API the public website reads")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     settings = load_settings()
@@ -25,6 +26,8 @@ def main(argv: list[str] | None = None) -> None:
         _ingest(settings)
     elif args.command == "analytics":
         _analytics(settings)
+    elif args.command == "public":
+        _public(settings)
     else:
         raise SystemExit(2)
 
@@ -36,6 +39,18 @@ def _serve(settings: Settings) -> None:
     conn = connect(settings.db_path)
     app = create_app(conn, settings)
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)
+
+
+def _public(settings: Settings) -> None:
+    from ccm_gateway.public import create_public_app
+
+    if not settings.public_key:
+        raise SystemExit("set CCM_PUBLIC_KEY before starting the public API")
+    uvicorn = importlib.import_module("uvicorn")
+    conn = connect(settings.db_path)
+    app = create_public_app(conn, settings, settings.public_key)
+    # Loopback only: Tailscale Funnel connects from this machine, nothing else should.
+    uvicorn.run(app, host="127.0.0.1", port=settings.public_port)
 
 
 def _analytics(settings: Settings) -> None:

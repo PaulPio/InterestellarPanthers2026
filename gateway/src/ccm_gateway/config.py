@@ -16,9 +16,8 @@ class Settings:
     api_port: int
     dashboard_dist: Path
     raw_retention_days: int
-    uplink_url: str | None
-    uplink_key: str | None
-    uplink_period_s: float
+    public_port: int
+    public_key: str | None
 
 
 def load_settings() -> Settings:
@@ -31,7 +30,6 @@ def load_settings() -> Settings:
         api_port=int(env("CCM_API_PORT", "8000")),
         dashboard_dist=Path(env("CCM_DASHBOARD_DIST", "dashboard/dist")),
         raw_retention_days=int(env("CCM_RAW_RETENTION_DAYS", "7")),
-        uplink_url=env("CCM_UPLINK_URL") or None,
-        uplink_key=env("CCM_UPLINK_KEY") or None,
-        uplink_period_s=float(env("CCM_UPLINK_PERIOD_S", "10")),
+        public_port=int(env("CCM_PUBLIC_PORT", "8001")),
+        public_key=env("CCM_PUBLIC_KEY") or None,
     )

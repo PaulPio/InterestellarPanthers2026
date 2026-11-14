@@ -1,13 +1,13 @@
 ---
 name: ccm-gateway
-description: Use when working on the Crew Context Monitor gateway that runs on the Raspberry Pi (gateway/, ccm_gateway) - the SQLite tables, MQTT ingest, the per-minute analytics that set the cardio/air/thermal/radiation card levels and attribution, the /api service, the cloud uplink, or when a card turns the wrong color or a scenario evaluation fails.
+description: Use when working on the Crew Context Monitor gateway that runs on the Raspberry Pi (gateway/, ccm_gateway) - the SQLite tables, MQTT ingest, the per-minute analytics that set the cardio/air/thermal/radiation card levels and attribution, the /api service, the read-only public API the website reads, or when a card turns the wrong color or a scenario evaluation fails.
 ---
 
 # CCM gateway (`gateway/`, package `ccm_gateway`)
 
 Every service is a separate process sharing one SQLite file (WAL mode). Settings come from
 `CCM_*` environment variables (`config.py`: `CCM_DB`, `CCM_MQTT_HOST/PORT`, `CCM_API_HOST/PORT`,
-`CCM_DASHBOARD_DIST`, `CCM_RAW_RETENTION_DAYS`, `CCM_UPLINK_URL/KEY/PERIOD_S`).
+`CCM_DASHBOARD_DIST`, `CCM_RAW_RETENTION_DAYS`, `CCM_PUBLIC_PORT`, `CCM_PUBLIC_KEY`).
 
 | Module | Job | Status |
 |---|---|---|
@@ -16,8 +16,8 @@ Every service is a separate process sharing one SQLite file (WAL mode). Settings
 | `ingest.py` | `store(conn, record)` (dedupe, rollups, node status); `run()` is the MQTT service | Done |
 | `analytics.py` | One pass per complete minute → card levels, events, `kv['status']` | v1 done |
 | `api.py` | FastAPI over SQLite with the contract's `/api` shapes; `learning_status()` fallback | Done |
-| `cli.py` | `ccm-gateway ingest | analytics | api` (and `uplink` when it lands) | Done |
-| `uplink.py` | Push API snapshots to the cloud | In progress (TealSpring) |
+| `cli.py` | `ccm-gateway ingest | analytics | api | public` | Done |
+| `public.py` | Read-only copy of the API (GET only, bearer key, loopback :8001) that Tailscale Funnel publishes for the website | Done |
 | `evalsim.py` | Score analytics against the simulator's scenario expectations | Done |
 
 On the Pi each command is a systemd unit (`deploy/pi/`, runbook in `deploy/pi/README.md`).

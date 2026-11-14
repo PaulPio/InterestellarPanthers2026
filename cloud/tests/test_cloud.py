@@ -1,20 +1,21 @@
 from __future__ import annotations
 
-import gzip
 import json
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from ccm_sim import contracts
 from fastapi.testclient import TestClient
 
-from ccm_cloud.app import check_snapshot, create_app
-from ccm_cloud.store import MemoryStore, Stored
+from ccm_cloud.app import create_app
+from ccm_cloud.pi import PiSource
 from ccm_cloud.wallclock import ANCHOR, WallClockMock
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "contracts" / "examples" / "api" / "valid"
-KEY = "test-key"
+KEY = "pi-key"
+ROTATION = "scrubber_failure:60,solar_particle_event:60"
 
 
 def example(name: str) -> dict[str, Any]:
@@ -22,18 +23,26 @@ def example(name: str) -> dict[str, Any]:
     return body
 
 
-def snapshot() -> dict[str, Any]:
-    status = example("status.air_red_cabin")
-    status["source_mode"] = "live"
-    return {
-        "v": 1,
-        "t": status["t"],
-        "status": status,
-        "events": example("events.mixed"),
-        "earth_queue": example("earth_queue.pending"),
-        "settings": example("settings.default"),
-        "history": {"co2_mmhg|-": example("history.co2_cabin")},
-    }
+class FakePi:
+    """Stands in for the Pi's public API behind httpx.MockTransport."""
+
+    def __init__(self) -> None:
+        self.online = True
+        self.requests: list[httpx.Request] = []
+        status = example("status.air_red_cabin")
+        status["source_mode"] = "live"
+        self.routes = {"/api/status": status, "/api/events": example("events.mixed")}
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if not self.online:
+            raise httpx.ConnectError("Pi is off")
+        if request.headers.get("authorization") != f"Bearer {KEY}":
+            return httpx.Response(401, json={"detail": "missing or wrong key"})
+        body = self.routes.get(request.url.path)
+        if body is None:
+            return httpx.Response(404, json={"detail": "Not Found"})
+        return httpx.Response(200, json=body)
 
 
 class Clock:
@@ -50,77 +59,79 @@ def clock() -> Clock:
 
 
 @pytest.fixture
-def store() -> MemoryStore:
-    return MemoryStore()
+def fake() -> FakePi:
+    return FakePi()
 
 
-@pytest.fixture
-def client(store: MemoryStore, clock: Clock) -> TestClient:
-    wall = WallClockMock("scrubber_failure:60,solar_particle_event:60", clock=clock)
-    return TestClient(create_app(store, wall, uplink_key=KEY, max_age_s=60))
+def make_client(fake: FakePi, clock: Clock, key: str = KEY, backoff_s: float = 15.0) -> TestClient:
+    pi = PiSource(
+        "https://pi.example.ts.net",
+        key,
+        backoff_s=backoff_s,
+        transport=httpx.MockTransport(fake.handler),
+    )
+    return TestClient(create_app(pi, WallClockMock(ROTATION, clock=clock)))
 
 
-def push(client: TestClient, body: Any, key: str = KEY, zipped: bool = True) -> int:
-    raw = json.dumps(body).encode()
-    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-    if zipped:
-        raw = gzip.compress(raw)
-        headers["Content-Encoding"] = "gzip"
-    return client.post("/api/uplink", content=raw, headers=headers).status_code
-
-
-def test_the_example_snapshot_is_valid() -> None:
-    assert check_snapshot(snapshot()) == []
-
-
-def test_without_a_snapshot_the_simulator_answers(client: TestClient) -> None:
+def test_without_a_pi_the_simulator_answers(clock: Clock) -> None:
+    client = TestClient(create_app(None, WallClockMock(ROTATION, clock=clock)))
     status = client.get("/api/status").json()
     assert contracts.errors("status", status) == []
     assert status["source_mode"] == "mock"
-    assert client.get("/api/_cloud/info").json()["mode"] == "mock"
+    assert client.get("/api/_cloud/info").json()["pi_configured"] is False
 
 
-def test_a_fresh_snapshot_is_served_live(client: TestClient) -> None:
-    assert push(client, snapshot()) == 200
+def test_a_reachable_pi_is_served_live(fake: FakePi, clock: Clock) -> None:
+    client = make_client(fake, clock)
     status = client.get("/api/status").json()
     assert status["source_mode"] == "live"
     assert status["crew_status"]["domain"] == "air"
-    assert client.get("/api/history?metric=co2_mmhg").json()["unit"] == "mmHg"
-    missing = client.get("/api/history?metric=hr&crew=W1").json()
-    assert contracts.errors("history", missing) == [] and missing["points"] == []
-    events = client.get("/api/events").json()["events"]
-    later = client.get(f"/api/events?since={events[0]['t']}").json()["events"]
-    assert len(later) == len([e for e in events if e["t"] > events[0]["t"]])
-    assert (
-        client.post("/api/checkin", json={"crew": "W1", "mood": 3, "sleep": 3}).status_code == 409
-    )
+    client.get("/api/events?since=5&limit=10")
+    assert fake.requests[-1].url.query == b"since=5&limit=10"  # the query is forwarded
+    assert client.get("/api/history?metric=hr&crew=W9").status_code == 404  # Pi's answer kept
+    assert client.get("/api/_cloud/info").json()["mode"] == "live"
 
 
-def test_a_stale_snapshot_falls_back_to_the_simulator(
-    store: MemoryStore, client: TestClient
-) -> None:
-    store._latest = Stored(snapshot(), 0.0)  # received long ago
+def test_writes_are_refused_while_the_pi_is_live(fake: FakePi, clock: Clock) -> None:
+    client = make_client(fake, clock)
+    body = {"crew": "W1", "mood": 3, "sleep": 3}
+    assert client.post("/api/checkin", json=body).status_code == 409
+    assert all(r.method == "GET" for r in fake.requests)  # nothing was sent to the Pi
+
+
+def test_an_offline_pi_falls_back_and_is_skipped_for_a_while(fake: FakePi, clock: Clock) -> None:
+    fake.online = False
+    client = make_client(fake, clock)
     assert client.get("/api/status").json()["source_mode"] == "mock"
-
-
-def test_bad_uploads_are_refused(client: TestClient) -> None:
-    assert push(client, snapshot(), key="wrong") == 401
-    broken = snapshot()
-    del broken["status"]["cards"]
-    assert push(client, broken) == 422
-    assert push(client, {"v": 2}) == 422
+    tried = len(fake.requests)
     assert client.get("/api/status").json()["source_mode"] == "mock"
+    assert len(fake.requests) == tried  # backing off: the Pi was not asked again
+    info = client.get("/api/_cloud/info").json()
+    assert info["mode"] == "mock" and "ConnectError" in info["pi_error"]
+
+
+def test_the_pi_is_used_again_once_it_returns(fake: FakePi, clock: Clock) -> None:
+    fake.online = False
+    client = make_client(fake, clock, backoff_s=0.0)
+    assert client.get("/api/status").json()["source_mode"] == "mock"
+    fake.online = True
+    assert client.get("/api/status").json()["source_mode"] == "live"
+
+
+def test_a_wrong_key_falls_back(fake: FakePi, clock: Clock) -> None:
+    client = make_client(fake, clock, key="stale")
+    assert client.get("/api/status").json()["source_mode"] == "mock"
+    assert client.get("/api/_cloud/info").json()["pi_error"] == "HTTP 401"
 
 
 def test_the_demo_follows_the_wall_clock(clock: Clock) -> None:
-    wall = WallClockMock("scrubber_failure:60,solar_particle_event:60", clock=clock)
-    first = wall.state()
-    t_first = first.t_now
+    wall = WallClockMock(ROTATION, clock=clock)
+    t_first = wall.state().t_now
     clock.t += 30  # 30 real seconds = 30 simulated minutes at speed 60
     assert wall.state().t_now - t_first == pytest.approx(1800, abs=60)
 
     # Two instances at the same moment agree.
-    other = WallClockMock("scrubber_failure:60,solar_particle_event:60", clock=clock)
+    other = WallClockMock(ROTATION, clock=clock)
     assert other.state().status()["crew_status"] == wall.state().status()["crew_status"]
 
     # Past the first scenario (4 h at 60x = 240 s) the rotation moves on, and it loops.

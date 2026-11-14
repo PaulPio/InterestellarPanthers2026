@@ -1,4 +1,4 @@
-"""SQLite store shared by ingest, analytics, the API and the uplink.
+"""SQLite store shared by ingest, analytics and the APIs.
 
 Every service opens its own connection with ``connect``. WAL mode lets the API read while ingest
 writes. All times are unix seconds. ``t_meas`` is the measured time and is what analysis uses;
