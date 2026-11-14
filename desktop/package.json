@@ -1,0 +1,52 @@
+{
+  "name": "ccm-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Crew Context Monitor desktop app (decision-support prototype, not a medical device)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/server.test.js",
+    "build:dashboard": "npm --prefix ../dashboard run build",
+    "pack": "npm run build:dashboard && electron-builder --dir",
+    "dist": "npm run build:dashboard && electron-builder"
+  },
+  "build": {
+    "appId": "org.crewcontextmonitor.desktop",
+    "productName": "Crew Context Monitor",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "server.js",
+      "backend.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dashboard/dist",
+        "to": "dashboard"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.medical"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Science"
+    }
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  }
+}

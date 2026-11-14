@@ -1,0 +1,12 @@
+{
+  "id": "q-2",
+  "t": 1794656200.0,
+  "tier": "flight_surgeon",
+  "approved": false,
+  "sent": false,
+  "bytes": 318,
+  "payload": {
+    "domain": "air",
+    "level": "red"
+  }
+}
