@@ -12,12 +12,13 @@ SPEED ?= 60
 BROKER ?= localhost:1883
 REPLAY ?=
 
-.PHONY: setup lint test contracts types dashboard-check check sim-eval build serve-mock demo-mock demo-live dashboard-dev desktop desktop-dist desktop-check e2e check-all clean
+.PHONY: setup lint test gateway-check contracts types dashboard-check check sim-eval build serve-mock demo-mock demo-live dashboard-dev desktop desktop-dist desktop-check e2e check-all clean
 
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$$(if [ -d $(VENV)/Scripts ]; then echo $(VENV)/Scripts; else echo $(VENV)/bin; fi)/python -m pip install -q --upgrade pip
 	$$(if [ -d $(VENV)/Scripts ]; then echo $(VENV)/Scripts; else echo $(VENV)/bin; fi)/python -m pip install -q -e "sim[dev]"
+	$$(if [ -d $(VENV)/Scripts ]; then echo $(VENV)/Scripts; else echo $(VENV)/bin; fi)/python -m pip install -q -e "gateway[dev]"
 	@if [ -f $(DASH)/package.json ]; then cd $(DASH) && npm ci; fi
 
 lint:
@@ -26,6 +27,11 @@ lint:
 
 test:
 	cd sim && ../$(VBIN)/python -m pytest -q
+
+gateway-check:
+	cd gateway && ../$(VBIN)/ruff check src tests && ../$(VBIN)/ruff format --check src tests
+	cd gateway && ../$(VBIN)/mypy
+	cd gateway && ../$(VBIN)/python -m pytest -q
 
 contracts:
 	$(VBIN)/python -m ccm_sim.contracts
@@ -40,7 +46,7 @@ dashboard-check:
 desktop-check:
 	cd $(DESK) && npm test
 
-check: contracts lint test dashboard-check desktop-check
+check: contracts lint test gateway-check dashboard-check desktop-check
 
 sim-eval:
 	$(VBIN)/ccm-sim scenarios check
