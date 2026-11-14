@@ -1,0 +1,8 @@
+# Python dependencies of the Vercel function (api/index.py): the simulator's and the cloud app's.
+# The simulator itself is imported from sim/src, not installed.
+fastapi
+numpy
+pyyaml
+jsonschema
+httpx
+paho-mqtt>=2,<3

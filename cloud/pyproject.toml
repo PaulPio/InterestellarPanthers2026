@@ -1,0 +1,15 @@
+# Tool settings for the cloud app (not an installable package: Vercel imports it from api/index.py).
+[tool.ruff]
+line-length = 100
+src = [".", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+strict = true
+files = ["ccm_cloud"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
