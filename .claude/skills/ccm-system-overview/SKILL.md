@@ -32,10 +32,10 @@ Everything downstream of MQTT cannot tell hardware from simulator, except the `s
 | `contracts/` | MQTT topics and schemas, `/api` schemas, `thresholds.yaml`, replay CSV format | Frozen at v1.1.0 |
 | `firmware/ccm_cabin_node/` | ESP32 cabin node (Arduino): SCD41, SGP40, PMS5003, Geiger | Working; see `firmware/README.md` |
 | `sim/` (`ccm_sim`) | Simulator, 11 scenarios, expectation oracle, **mock API** | Done |
-| `gateway/` (`ccm_gateway`) | Pi services: SQLite store, ingest, analytics, API, uplink | Store + analytics v1 done; ingest, API, uplink in progress |
+| `gateway/` (`ccm_gateway`) | Pi services: SQLite store, ingest, analytics, API, uplink | Store, ingest, analytics v1 and API done; uplink in progress |
 | `dashboard/` | React + Vite + Recharts app, built once and served as static files | Done |
 | `desktop/` | Electron wrapper around the dashboard | Done |
-| `deploy/pi/` | Raspberry Pi 4 install script, systemd units, hotspot, NTP | In progress |
+| `deploy/pi/` | Raspberry Pi 4 install script, systemd units, hotspot, NTP | Written; not yet run on a Pi |
 | `docs/` | Demo runbook, backend handoff, plan, decisions (`DECISIONS.md` D1–D24) | Reference |
 
 No wearable firmware exists yet; the simulator plays crew W1, W2 and W3.

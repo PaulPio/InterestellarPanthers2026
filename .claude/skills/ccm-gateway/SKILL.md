@@ -12,11 +12,15 @@ Every service is a separate process sharing one SQLite file (WAL mode). Settings
 | Module | Job | Status |
 |---|---|---|
 | `db.py` | Schema, `connect()`, `add_sample()` | Done |
-| `adapter.py` + `ingest.py` | MQTT → normalize (incl. firmware quirks) → raw rows + rollups | In progress (StormyRaven) |
+| `adapter.py` | `normalize(topic, payload, t_recv)` → typed record or None; handles the cabin firmware's quirks | Done |
+| `ingest.py` | `store(conn, record)` (dedupe, rollups, node status); `run()` is the MQTT service | Done |
 | `analytics.py` | One pass per complete minute → card levels, events, `kv['status']` | v1 done |
-| `api.py` + `cli.py` | FastAPI over SQLite with the contract's `/api` shapes | In progress (TealSpring) |
-| `uplink.py` | Push snapshots to the cloud | Planned |
+| `api.py` | FastAPI over SQLite with the contract's `/api` shapes; `learning_status()` fallback | Done |
+| `cli.py` | `ccm-gateway ingest | analytics | api` (and `uplink` when it lands) | Done |
+| `uplink.py` | Push API snapshots to the cloud | In progress (TealSpring) |
 | `evalsim.py` | Score analytics against the simulator's scenario expectations | Done |
+
+On the Pi each command is a systemd unit (`deploy/pi/`, runbook in `deploy/pi/README.md`).
 
 ## Tables (`db.py`)
 
@@ -80,7 +84,7 @@ Tunables are the `Params` dataclass at the top of the file. Change a limit in
 
 ```bash
 cd gateway
-../.venv/Scripts/python -m pytest -q                         # unit tests (tests/test_analytics.py)
+../.venv/Scripts/python -m pytest -q                         # all tests, incl. test_pipeline.py end to end
 ../.venv/Scripts/python -m ccm_gateway.evalsim individual_illness scrubber_failure
 ../.venv/Scripts/python -m ccm_gateway.evalsim --seeds 5     # every scenario, five seeds (slow)
 ```
