@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS baseline (
 
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  t REAL NOT NULL, kind TEXT NOT NULL, subject TEXT, metric TEXT,
+  t REAL NOT NULL, kind TEXT NOT NULL, domain TEXT, subject TEXT, metric TEXT,
   score REAL, reason TEXT NOT NULL, simulated INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS events_t ON events (t);

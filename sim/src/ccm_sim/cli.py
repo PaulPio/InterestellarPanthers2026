@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--speed", help="speed multiplier or 'max' (default: 1, or each playlist step's speed)"
     )
     run.add_argument("--broker", help="host:port of the MQTT broker (default: print JSONL)")
+    run.add_argument(
+        "--no-cabin",
+        action="store_true",
+        help="do not publish the simulated cabin node (use with a real cabin node on the broker)",
+    )
 
     scen = sub.add_parser("scenarios", help="list scenarios or check their expectations")
     scen.add_argument("action", choices=["list", "check", "expected"])
@@ -132,7 +137,11 @@ def _run(
         t0 = parse_iso(args.start) if args.start else default_start
         run_playlist(playlist, sink, args.seed, t0, crew, speed)
         return
-    run_world(_world(args, default_start), sink, 1.0 if speed is None else speed)
+    world = _world(args, default_start)
+    if getattr(args, "no_cabin", False):
+        # The cabin model still drives the crew's physiology; only its messages are held back.
+        world.sources = [s for s in world.sources if not str(getattr(s, "key", "")).startswith("C")]
+    run_world(world, sink, 1.0 if speed is None else speed)
 
 
 def _serve_mock(args: argparse.Namespace) -> int:

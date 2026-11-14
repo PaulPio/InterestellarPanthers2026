@@ -41,3 +41,6 @@ files = ["src"]
 testpaths = ["tests"]
 markers = ["slow: long-running statistical or scenario tests"]
 addopts = "-m 'not slow'"
+
+[tool.setuptools.package-data]
+ccm_sim = ["py.typed"]
