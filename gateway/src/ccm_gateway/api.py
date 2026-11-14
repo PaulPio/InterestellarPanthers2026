@@ -278,7 +278,7 @@ def _green_card(domain: str) -> dict[str, Any]:
     return {
         "domain": domain,
         "level": "green",
-        "reason": "Learning the baseline.",
+        "reason": "Learning the baseline; 0 alerts so far.",
         "action": None,
         "attribution": None,
         "crew": [],
