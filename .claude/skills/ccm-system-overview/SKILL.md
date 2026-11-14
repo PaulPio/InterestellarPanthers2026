@@ -17,9 +17,10 @@ ESP32 cabin node ──MQTT──▶ mosquitto ─▶ ccm-gateway ingest ─▶ 
 ccm-sim (crew W1–W3) ─MQTT─▶  (Pi)                               │        (one pass per minute)
                                                                  ▼
                           dashboard (React) ◀── ccm-gateway api (FastAPI :8000, /api/*)
-                                                                 │ uplink (planned)
+                                                                 │ ccm-gateway uplink (in progress)
                                                                  ▼
-                          public site on Vercel (planned; falls back to the simulator)
+                          public site on Vercel: cloud/ccm_cloud, snapshot kept in Supabase;
+                          no fresh snapshot for 60 s → wall-clock simulator demo
 ```
 
 Everything downstream of MQTT cannot tell hardware from simulator, except the `src` field
@@ -35,6 +36,7 @@ Everything downstream of MQTT cannot tell hardware from simulator, except the `s
 | `gateway/` (`ccm_gateway`) | Pi services: SQLite store, ingest, analytics, API, uplink | Store, ingest, analytics v1 and API done; uplink in progress |
 | `dashboard/` | React + Vite + Recharts app, built once and served as static files | Done |
 | `desktop/` | Electron wrapper around the dashboard | Done |
+| `cloud/` (`ccm_cloud`), `api/index.py`, `vercel.json` | Always-on public API for Vercel: live snapshot or simulator | Done; not yet deployed (`deploy/cloud/README.md`) |
 | `deploy/pi/` | Raspberry Pi 4 install script, systemd units, hotspot, NTP | Written; not yet run on a Pi |
 | `docs/` | Demo runbook, backend handoff, plan, decisions (`DECISIONS.md` D1–D24) | Reference |
 
@@ -59,6 +61,7 @@ can run by hand (read the `Makefile`).
 |---|---|
 | Dashboard on the mock API at http://127.0.0.1:8000 | `cd dashboard && npm run build`, then `.venv/Scripts/ccm-sim serve-mock --scenario scrubber_failure --speed 60` |
 | Fast checks | `make check` (contracts, sim lint/test, `gateway-check`, dashboard, desktop) |
+| Cloud app checks | `make cloud-check` |
 | Gateway checks only | in `gateway/`: `../.venv/Scripts/python -m ruff check src tests`, `-m mypy`, `-m pytest -q` |
 | Analytics vs scenarios | in `gateway/`: `../.venv/Scripts/python -m ccm_gateway.evalsim [scenario ...]` |
 
