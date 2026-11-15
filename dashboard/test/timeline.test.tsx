@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { Events, History } from "../src/api/types.gen";
@@ -131,5 +131,56 @@ describe("fused timeline", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.url.search.includes("metric=prv&crew=W3"))).toBe(true),
     );
+  });
+  it("asks for one history per strip, and never puts two scales on one plot", async () => {
+    const calls = api();
+    renderRoute("/", polled(status("all_green")));
+    const chart = await timeline();
+    const urls = calls.map((c) => c.url.search);
+    expect(urls).toContain("?metric=temp_c&hours=6&step=60");
+    expect(urls).toContain("?metric=cpm&hours=6&step=60");
+    for (const name of ["series-co2", "series-crew", "series-temp", "series-cpm"]) {
+      expect(chart.querySelectorAll(`.${name}`)).toHaveLength(1);
+    }
+    expect(screen.getByTestId("timeline-plot").querySelectorAll("svg")).toHaveLength(4);
+  });
+
+  it("shows the latest reading until the time cursor is moved, then the reading under it", async () => {
+    api();
+    renderRoute("/", polled(status("all_green")));
+    await timeline();
+    const co2 = co2History().points;
+    const readout = screen.getByTestId("readout-co2");
+    expect(screen.getByTestId("cursor-time")).toHaveTextContent("Latest");
+    expect(readout).toHaveTextContent(`${co2.at(-1)!.mean.toFixed(1)}`);
+    fireEvent.change(screen.getByRole("slider", { name: "Time cursor" }), {
+      target: { value: "1" },
+    });
+    expect(screen.getByTestId("cursor-time")).toHaveTextContent("Cursor");
+    expect(readout).toHaveTextContent(/^1s*mmHg/);
+    expect(screen.getByTestId("readout-crew")).toHaveTextContent(`${prv.points[1].mean}`);
+  });
+
+  it("marks a window on press and drag, reports what is inside it, and clears it", async () => {
+    api();
+    const s = status("all_green");
+    renderRoute("/", polled(s));
+    await timeline();
+    const plot = screen.getByTestId("timeline-plot");
+    plot.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 600, height: 300, right: 600, bottom: 300 }) as DOMRect;
+    expect(screen.queryByTestId("window-summary")).toBeNull();
+    fireEvent.pointerDown(plot, { clientX: 0, buttons: 1 });
+    fireEvent.pointerMove(plot, { clientX: 600, buttons: 1 });
+    fireEvent.pointerUp(plot, { clientX: 600 });
+    expect(screen.getByTestId("window-summary")).toHaveTextContent("6 h");
+    expect(plot.querySelector(".timeline-window")).not.toBeNull();
+    const inside = co2History().points.filter((p) => p.t >= s.t - 6 * 3600 && p.t <= s.t);
+    const mean = inside.reduce((sum, p) => sum + p.mean, 0) / inside.length;
+    const shown = Number.isInteger(mean) ? String(mean) : mean.toFixed(1);
+    expect(screen.getByTestId("readout-co2")).toHaveTextContent(`window mean ${shown}`);
+    await userEvent.click(screen.getByRole("button", { name: "Clear window" }));
+    expect(screen.queryByTestId("window-summary")).toBeNull();
+    expect(plot.querySelector(".timeline-window")).toBeNull();
   });
 });

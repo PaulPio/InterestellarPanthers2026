@@ -41,23 +41,32 @@ export function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCanc
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      {/* The black-and-yellow hazard border: used only for actions that cannot be undone. */}
-      <div className="w-full max-w-[32.5rem] bg-[repeating-linear-gradient(-45deg,#f2c200_0_12px,#0a0a0a_12px_24px)] p-1.5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(2,5,16,0.78)] p-4 backdrop-blur-sm">
+      <div
+        ref={dialogRef}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        aria-describedby="confirm-body"
+        onKeyDown={onKeyDown}
+        className="w-full max-w-[30rem] overflow-hidden border border-line-strong bg-panel shadow-[0_24px_64px_rgba(0,0,0,0.6)]"
+      >
+        {/* The black-and-yellow hazard strip: used only for actions that cannot be undone. */}
         <div
-          ref={dialogRef}
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="confirm-title"
-          aria-describedby="confirm-body"
-          onKeyDown={onKeyDown}
-          className="bg-panel p-6"
-        >
-          <p className="micro-label">Cannot be undone</p>
-          <h2 id="confirm-title" className="mt-2 text-xl font-semibold">
+          aria-hidden="true"
+          className="h-2 bg-[repeating-linear-gradient(-45deg,#f2c200_0_10px,#0a0a0a_10px_20px)]"
+        />
+        <div className="bg-[linear-gradient(180deg,rgba(240,68,58,0.12),transparent_55%)] p-6">
+          <p className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M6 0.8 L11.6 11 L0.4 11 Z" fill="var(--yellow-mark)" />
+            </svg>
+            <span className="micro-label">Cannot be undone</span>
+          </p>
+          <h2 id="confirm-title" className="mt-2.5 text-xl leading-7 font-semibold">
             {title}
           </h2>
-          <div id="confirm-body" className="mt-2.5 text-[0.9375rem] leading-[1.375rem] text-muted">
+          <div id="confirm-body" className="mt-2 text-[0.9375rem] leading-[1.375rem] text-muted">
             {children}
           </div>
           <div className="mt-6 flex flex-wrap justify-end gap-3">
@@ -65,14 +74,14 @@ export function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCanc
               ref={cancelRef}
               type="button"
               onClick={onCancel}
-              className="h-14 min-w-[7.5rem] border border-line-strong px-5 text-[0.9375rem] font-semibold"
+              className="btn h-12 min-w-[7.5rem] px-5 text-[0.9375rem]"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={onConfirm}
-              className="h-14 min-w-[10.5rem] bg-ink px-5 text-[0.9375rem] font-semibold text-surface"
+              className="btn btn-danger h-12 min-w-[10.5rem] px-5 text-[0.9375rem]"
             >
               {confirmLabel}
             </button>

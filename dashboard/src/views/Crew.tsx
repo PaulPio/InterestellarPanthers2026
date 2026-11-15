@@ -152,7 +152,11 @@ export default function Crew() {
               <span className="micro-label mr-2">Now</span>
               Vitals against {id}'s baseline
             </h2>
-            <div role="group" aria-label="Range" className="flex border border-line-strong">
+            <div
+              role="group"
+              aria-label="Range"
+              className="flex overflow-hidden border border-line-strong"
+            >
               {RANGES.map((r, i) => (
                 <button
                   key={r.hours}

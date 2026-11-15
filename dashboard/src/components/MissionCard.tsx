@@ -43,13 +43,13 @@ export function MissionCard() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(22rem 12rem at 100% 50%, rgba(63, 169, 255, 0.22), transparent 70%)",
+            "radial-gradient(20rem 12rem at 100% 50%, rgba(63, 169, 255, 0.3), transparent 70%), radial-gradient(16rem 10rem at 0% 0%, rgba(169, 149, 255, 0.16), transparent 70%)",
         }}
       />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2">
         <div>
           <p className="micro-label">Crew Context Monitor</p>
-          <h2 className="mt-0.5 text-lg leading-6 font-semibold">
+          <h2 className="brand-text mt-0.5 text-xl leading-7 font-semibold">
             {status ? `Good shift, crew.` : "Waiting for the monitor."}
           </h2>
           <p className="mt-0.5 text-xs text-muted">
@@ -68,6 +68,10 @@ export function MissionCard() {
         ) : null}
       </div>
       <div className="relative z-10 shrink-0">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-x-5 top-1/2 h-14 -translate-y-1/2 -rotate-12 rounded-[50%] border border-[rgba(124,196,255,0.45)] border-b-transparent"
+        />
         <EarthGlobe size={150} />
       </div>
     </section>
