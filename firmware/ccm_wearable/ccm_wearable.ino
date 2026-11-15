@@ -31,6 +31,8 @@
       (the Pi then uses its own receive time)
     - prints every sensor reading to the Serial Monitor once per second (set PRINT_EVERY_SECOND to 0 to stop)
     - BLE notifications are still in the code but off by default: set USE_BLE to 1 to turn them on
+    - connection hardening: WiFi power saving off, WiFi restarted after 20 s down, the board
+      restarted after 90 s without the Pi, a 15 s watchdog, and rssi/up/drops in each message
 */
 
 #include <Wire.h>
@@ -38,6 +40,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <time.h>
+#include <esp_task_wdt.h>
 
 #define USE_BLE 0                    // 1 = also send each message as a BLE notification
 #if USE_BLE
@@ -71,6 +74,13 @@
 #define REPLAY_SLOTS       12        // 12 x 5 s = 60 s
 #define MAX_IBI_PER_MSG    8
 
+// Connection hardening (0 turns each one off)
+#define WIFI_NO_SLEEP      1         // keep the WiFi radio awake: fewer dropped connections
+#define WIFI_LOW_TX_POWER  0         // 1 = lower transmit power; helps SuperMini boards with a badly matched antenna
+#define WIFI_RESTART_S     20        // WiFi down this long: start the connection again
+#define MQTT_REBOOT_S      90        // not connected to the Pi this long: restart the board
+#define WATCHDOG_S         15        // the loop stalls this long: the chip restarts itself
+
 // Nordic UART Service UUIDs. The Pi's ble-bridge subscribes to the TX (notify) characteristic.
 #define SERVICE_UUID       "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 #define NOTIFY_CHAR_UUID   "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -85,6 +95,8 @@ PubSubClient mqtt(net);
 char nodeName[32] = "CCM-" NODE_ID;
 uint32_t tMqttTry = 0, tPulsePoll = 0;
 bool ntpStarted = false, wifiWasUp = false;
+bool mqttWasUp = false;
+uint32_t tWifiDown = 0, tMqttDown = 0, drops = 0;   // drops: connections to the Pi lost since boot
 
 #if USE_BLE
 BLEServer *bleServer = nullptr;
@@ -180,10 +192,30 @@ void networkService() {
     if (!ntpStarted) { static char ntpHost[20]; strncpy(ntpHost, brokerAddress().toString().c_str(), sizeof(ntpHost) - 1); configTime(0, 0, ntpHost); ntpStarted = true; }
     tMqttTry = 0;
   }
+  bool mqttUp = mqtt.connected();
+  if (mqttWasUp && !mqttUp) { drops++; Serial.println("MQTT connection to the Pi lost"); }
+  mqttWasUp = mqttUp;
+  if (mqttUp) tMqttDown = 0;
+  else if (!tMqttDown) tMqttDown = millis() | 1;
+  if (tMqttDown && millis() - tMqttDown > MQTT_REBOOT_S * 1000UL) {
+    Serial.println("Not connected to the Pi for too long: restarting");
+    delay(100);
+    ESP.restart();
+  }
   if (!up && wifiWasUp) Serial.println("WiFi lost, retrying in the background");
   wifiWasUp = up;
-  if (!up) return;
-  if (mqtt.connected()) { mqtt.loop(); return; }
+  if (!up) {
+    if (!tWifiDown) tWifiDown = millis() | 1;
+    if (millis() - tWifiDown > WIFI_RESTART_S * 1000UL) {   // auto-reconnect stalled: start over
+      Serial.println("WiFi still down: starting the connection again");
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+      tWifiDown = millis() | 1;
+    }
+    return;
+  }
+  tWifiDown = 0;
+  if (mqttUp) { mqtt.loop(); return; }
   if (tMqttTry && millis() - tMqttTry < 3000) return;          // one attempt every 3 s
   tMqttTry = millis() | 1;
   IPAddress broker = brokerAddress();                           // the Pi (MQTT_HOST, or the hotspot gateway)
@@ -369,6 +401,10 @@ void closeWindow() {
   snprintf(msg + n, sizeof(msg) - n, "]");
   appendNum(msg, sizeof(msg), "batt", readBatt(), 2);
   n = strlen(msg);
+  // health, so the Pi can see why a connection drops: signal, uptime, connections lost
+  if (WiFi.status() == WL_CONNECTED) n += snprintf(msg + n, sizeof(msg) - n, ",\"rssi\":%d", (int)WiFi.RSSI());
+  else n += snprintf(msg + n, sizeof(msg) - n, ",\"rssi\":null");
+  n += snprintf(msg + n, sizeof(msg) - n, ",\"up\":%lu,\"drops\":%lu", (unsigned long)(millis() / 1000), (unsigned long)drops);
   if (haveMax && !finger) n += snprintf(msg + n, sizeof(msg) - n, ",\"finger\":false");
   snprintf(msg + n, sizeof(msg) - n, "}");
 
@@ -418,6 +454,9 @@ bool findBus(int &sdaOut, int &sclOut) {
 // ----------------------------------------------------------------- setup / loop
 void setup() {
   Serial.begin(115200);
+#if ARDUINO_USB_CDC_ON_BOOT && ARDUINO_USB_MODE
+  Serial.setTxTimeoutMs(0);                // never wait for a USB terminal that is not reading
+#endif
   delay(1500);
   Serial.println("\nCCM wearable node - prototype, not a medical device");
 
@@ -449,7 +488,13 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(nodeName);              // shows up in the Pi's DHCP leases, missing sensors included
   WiFi.setAutoReconnect(true);
+#if WIFI_NO_SLEEP
+  WiFi.setSleep(false);                    // power saving off: the radio stays awake
+#endif
   WiFi.begin(WIFI_SSID, WIFI_PASS);
+#if WIFI_LOW_TX_POWER
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);
+#endif
   mqtt.setBufferSize(512);
   mqtt.setSocketTimeout(2);
   mqtt.setKeepAlive(15);
@@ -463,9 +508,21 @@ void setup() {
   analogSetPinAttenuation(BATT_ADC_PIN, ADC_11db);
 #endif
   tWin = tMpu = tTmp = tPrint = millis();
+#if WATCHDOG_S > 0
+  // Restart the chip if the loop stops for WATCHDOG_S seconds (a hang becomes a short reboot).
+  esp_task_wdt_config_t wdt = {};
+  wdt.timeout_ms = WATCHDOG_S * 1000;
+  wdt.idle_core_mask = 0;
+  wdt.trigger_panic = true;
+  if (esp_task_wdt_reconfigure(&wdt) != ESP_OK) esp_task_wdt_init(&wdt);
+  esp_task_wdt_add(NULL);                  // watch this task (setup and loop)
+#endif
 }
 
 void loop() {
+#if WATCHDOG_S > 0
+  esp_task_wdt_reset();
+#endif
   uint32_t now = millis();
   pollPulse();                                           // must run often: the sensor FIFO holds 320 ms
   if (now - tMpu >= 20) { tMpu += 20; if (now - tMpu > 200) tMpu = now; pollMpu(); }

@@ -57,6 +57,13 @@ def test_clock_not_set_and_a_missing_sensor() -> None:
     assert r.motion is True and r.act == pytest.approx(5.1 / 9.80665)
 
 
+def test_health_fields_are_accepted_and_ignored() -> None:
+    """The hardened firmware adds rssi, up and drops; the Pi stores the reading as before."""
+    r = norm(dict(lines()[0], rssi=-67, up=342, drops=1))
+    assert (r.hr, r.seq) == (72, 12)
+    assert norm(dict(lines()[0], rssi=None, up=5, drops=0)).hr == 72
+
+
 def test_bad_values_are_dropped_or_rejected() -> None:
     msg = dict(lines()[0], ibi=[100, 830, 2500, True, 845])
     assert norm(msg).ibi == (830, 845)  # out-of-range and non-integer beat gaps dropped
