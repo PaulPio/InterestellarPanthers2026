@@ -82,8 +82,11 @@ Rerun it after every `git pull`: that is what copies the new code to `/opt/ccm/s
 are installed in editable mode from that copy because the simulator finds its scenarios, parameters
 and the `contracts/` directory relative to its source tree.
 
-`ccm-sim-crew` publishes simulated crew W1 to W3 with `--no-cabin`, so the real cabin node is the
-only source of cabin data. Without a cabin node connected, the cabin cards show no data.
+Simulated crew are **off** by default, so the dashboard shows only real sensors: until a wearable
+sends data, the cardiovascular card says there is no wearable data. Set `CCM_SIM_CREW=1` in
+`/etc/ccm/ccm.env` and rerun the installer to run `ccm-sim-crew`, which publishes simulated
+crew W1 to W3 with `--no-cabin` (the real cabin node stays the only source of cabin data). The
+public site's Demo mode has simulated crew either way.
 
 ## 6. Configure the hotspot
 
@@ -113,11 +116,11 @@ In `firmware/ccm_cabin_node/`:
 Services:
 
 ```bash
-systemctl status ccm-ingest ccm-analytics ccm-api ccm-public ccm-sim-crew
+systemctl status ccm-ingest ccm-analytics ccm-api ccm-public
 journalctl -u ccm-api -n 50 --no-pager
 ```
 
-Broker traffic (simulated crew starts immediately; the cabin node once it is flashed):
+Broker traffic (the cabin node once it is flashed; simulated crew only with `CCM_SIM_CREW=1`):
 
 ```bash
 mosquitto_sub -h 127.0.0.1 -t 'ccm/#' -v
@@ -181,7 +184,7 @@ simulator demo.
 | `ccm-analytics.service` | `/opt/ccm/venv/bin/ccm-gateway analytics` | `ccm` |
 | `ccm-api.service` | `/opt/ccm/venv/bin/ccm-gateway api` | `ccm` |
 | `ccm-public.service` | `/opt/ccm/venv/bin/ccm-gateway public` (only when `CCM_PUBLIC_KEY` is set) | `ccm` |
-| `ccm-sim-crew.service` | `/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --no-cabin --broker 127.0.0.1:1883` | `ccm` |
+| `ccm-sim-crew.service` (only with `CCM_SIM_CREW=1`) | `/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --no-cabin --broker 127.0.0.1:1883` | `ccm` |
 
 All units read `/etc/ccm/ccm.env`. They restart on failure; `ccm-sim-crew` restarts always, because its 24-hour scenario ends.
 

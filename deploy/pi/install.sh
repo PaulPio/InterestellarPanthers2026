@@ -85,11 +85,21 @@ done
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable mosquitto chrony
 $SUDO systemctl restart mosquitto chrony
-$SUDO systemctl enable ccm-ingest.service ccm-analytics.service \
-  ccm-api.service ccm-sim-crew.service
+$SUDO systemctl enable ccm-ingest.service ccm-analytics.service ccm-api.service
+
+units="ccm-ingest ccm-analytics ccm-api"
+
+# Simulated crew are off unless CCM_SIM_CREW=1: Live should show only real sensors, and the
+# simulated crew would otherwise appear as real crew on the dashboard.
+if $SUDO grep -Eq '^CCM_SIM_CREW=1' "$CCM_ETC/ccm.env"; then
+  $SUDO systemctl enable ccm-sim-crew.service
+  units="$units ccm-sim-crew"
+else
+  $SUDO systemctl disable --now ccm-sim-crew.service >/dev/null 2>&1 || true
+  echo "Simulated crew left off: set CCM_SIM_CREW=1 in $CCM_ETC/ccm.env to turn them on."
+fi
 
 # The public API runs only once CCM_PUBLIC_KEY is set; without a key it refuses to start.
-units="ccm-ingest ccm-analytics ccm-api ccm-sim-crew"
 $SUDO systemctl disable --now ccm-uplink.service >/dev/null 2>&1 || true  # replaced by ccm-public
 $SUDO rm -f /etc/systemd/system/ccm-uplink.service
 if $SUDO grep -Eq '^CCM_PUBLIC_KEY=.+' "$CCM_ETC/ccm.env"; then
