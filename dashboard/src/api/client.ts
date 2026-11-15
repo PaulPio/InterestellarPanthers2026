@@ -128,7 +128,7 @@ export const api = {
 
 /** `GET /api/_cloud/info`. Not part of the dashboard contract. */
 export interface CloudInfo {
-  mode: "live" | "mock";
+  mode: "live" | "no_data";
   pi_configured: boolean;
   pi_error: string | null;
   rotation: string[];

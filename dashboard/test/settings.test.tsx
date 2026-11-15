@@ -1,8 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Settings } from "../src/api/types.gen";
-import { sourceLabel } from "../src/components/MissionCard";
+import type { Settings, Status } from "../src/api/types.gen";
+import { isNoData, sourceLabel } from "../src/components/MissionCard";
 import { fixture, mockApi, polled, renderRoute, status } from "./helpers";
 
 const settings = fixture<Settings>("settings.default");
@@ -187,10 +187,12 @@ describe("settings view", () => {
       if (url.pathname === "/api/settings" && init?.method !== "PUT") return settings;
       return undefined;
     });
-    renderRoute("/settings", polled(status("all_green")));
+    renderRoute("/settings", polled(noDataStatus()));
     const section = await screen.findByRole("region", { name: "Data source" });
     expect(within(section).getByRole("radio", { name: "Live" })).toBeChecked();
-    expect(within(section).getByRole("status")).toHaveTextContent("The Pi did not answer");
+    expect(within(section).getByRole("status")).toHaveTextContent(
+      "The Pi is not answering, so Live shows no data",
+    );
     await userEvent.click(within(section).getByRole("radio", { name: "Demo" }));
     expect(within(section).queryByRole("status")).toBeNull();
     await waitFor(() => {
@@ -210,8 +212,29 @@ describe("source label", () => {
   it("follows the browser choice only on the public site", () => {
     expect(sourceLabel("live", "live", true)).toBe("Live");
     expect(sourceLabel("mock", "demo", true)).toBe("Demo");
-    expect(sourceLabel("mock", "live", true)).toBe("Demo, the Pi did not answer");
+    expect(sourceLabel("live", "live", true, true)).toBe("Live, no data from the Pi");
     expect(sourceLabel("mock", "live", false)).toBe("Simulated");
     expect(sourceLabel("live", "demo", false)).toBe("Live");
   });
+
+  it("recognises the public site's no-data status", () => {
+    expect(isNoData(noDataStatus())).toBe(true);
+    expect(isNoData(status("all_green"))).toBe(false);
+  });
 });
+
+/** The status the public site sends on Live while the Pi is not answering. */
+function noDataStatus(): Status {
+  const s = status("all_green");
+  return {
+    ...s,
+    source_mode: "live",
+    crew: [],
+    cards: s.cards.map((c) => ({
+      ...c,
+      reason: "No data from the Pi since 05:23 UTC.",
+      numbers: [],
+      detector: { name: "no data", state: "green", detail: "waiting for the Pi" },
+    })) as unknown as Status["cards"],
+  };
+}

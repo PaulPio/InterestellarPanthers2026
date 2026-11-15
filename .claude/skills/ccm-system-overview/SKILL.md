@@ -20,7 +20,7 @@ ccm-sim (crew W1–W3) ─MQTT─▶  (Pi)                               │    
                                                                  │ ccm-gateway public (read-only, :8001)
                                                                  ▼ Tailscale Funnel (HTTPS)
                           public site on Vercel: cloud/ccm_cloud forwards GETs to the Pi;
-                          Pi unreachable → wall-clock simulator demo
+                          Pi unreachable → "no data" on Live; Demo = wall-clock simulator
 ```
 
 Everything downstream of MQTT cannot tell hardware from simulator, except the `src` field
@@ -36,7 +36,7 @@ Everything downstream of MQTT cannot tell hardware from simulator, except the `s
 | `gateway/` (`ccm_gateway`) | Pi services: SQLite store (the only database), ingest, analytics, local API, public read-only API | Done (analytics v1) |
 | `dashboard/` | React + Vite + Recharts app, built once and served as static files | Done |
 | `desktop/` | Electron wrapper around the dashboard | Done |
-| `cloud/` (`ccm_cloud`), `api/index.py`, `vercel.json` | Always-on public API for Vercel: forwards to the Pi, or the simulator | Done; not yet deployed (`deploy/cloud/README.md`) |
+| `cloud/` (`ccm_cloud`), `api/index.py`, `vercel.json` | Always-on public API for Vercel: Live forwards to the Pi (no data when it is down), Demo plays the simulator | Deployed (`deploy/cloud/README.md`) |
 | `deploy/pi/` | Raspberry Pi 4 install script, systemd units, hotspot, NTP | Written; not yet run on a Pi |
 | `docs/` | Demo runbook, backend handoff, plan, decisions (`DECISIONS.md` D1–D24) | Reference |
 

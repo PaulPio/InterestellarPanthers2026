@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import type { Settings as SettingsData } from "../api/types.gen";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { isNoData } from "../components/MissionCard";
 import { useCloudInfo } from "../hooks/useCloudInfo";
 import { useStatusContext } from "../hooks/StatusContext";
 import { STALE_MS, usePolling } from "../hooks/usePolling";
@@ -93,8 +94,8 @@ export default function Settings() {
         <section aria-label="Data source" className="pane p-2.5">
           <h2 className="micro-label">Data source</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Live reads the cabin node through the Pi. Demo plays a scripted scenario in this browser
-            only. Heart rate stays simulated until the wearable sends its own data.
+            Live shows only real readings from the Pi, and no data when the Pi is not answering.
+            Demo plays a scripted scenario in this browser only.
           </p>
           <div className="mt-1.5 flex flex-col">
             {(
@@ -118,12 +119,12 @@ export default function Settings() {
           </div>
           {source === "live" && !cloud.pi_configured ? (
             <p role="status" className="mt-1 text-xs">
-              The public site is not connected to the Pi yet, so Live shows the demo.
+              The public site is not connected to the Pi yet, so Live shows no data.
             </p>
           ) : null}
-          {source === "live" && cloud.pi_configured && status?.source_mode === "mock" ? (
+          {source === "live" && cloud.pi_configured && isNoData(status) ? (
             <p role="status" className="mt-1 text-xs">
-              The Pi did not answer, so this browser is showing the demo.
+              The Pi is not answering, so Live shows no data until it does.
             </p>
           ) : null}
         </section>
