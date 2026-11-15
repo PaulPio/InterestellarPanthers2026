@@ -86,6 +86,7 @@ class CrewView:
     spo2: float | None = None
     skin_resid: float | None = None
     resting: bool = True
+    reporting: bool = False  # the wearable sent messages in the window
     level: str = "green"
     hr_changed: bool = False
     prv_changed: bool = False
@@ -382,6 +383,13 @@ def _analyse_crew(
     crew_state = state["crew"].setdefault(cid, {})
 
     _store_beat_pairs(conn, cid, t_min)
+    view.reporting = (
+        conn.execute(
+            "SELECT 1 FROM raw_wearable WHERE crew = ? AND t_meas >= ? AND t_meas < ? LIMIT 1",
+            (cid, t - p.window_min * MINUTE, t),
+        ).fetchone()
+        is not None
+    )
     judge_from = t - p.judge_min * MINUTE
     view.hr = _mean(conn, cid, "hr", t_from, t)
     view.spo2 = _mean(conn, cid, "spo2", t_from, t)
@@ -713,7 +721,9 @@ def _card(
         ]
         name = "baseline comparison"
         detail = "no change" if level == "green" else f"change began {int(minutes)} min ago"
-        if shown is None or shown.hr is None:
+        if shown is not None and shown.hr is None and shown.reporting:
+            reason = f"{shown.id} connected; no finger on the pulse sensor for 5 min."
+        elif shown is None or shown.hr is None:
             reason = "No wearable data in the last 5 min."
         elif not any(c.ready for c in tick.crew):
             reason = f"Learning the baseline; resting HR {shown.hr:.0f} so far."
@@ -730,11 +740,18 @@ def _card(
             reason = f"VOC index {cabin.voc:.0f}, above the {voc_limit:.0f} yellow line{co2_part}."
             detail = f"VOC index above {voc_limit:.0f} for {int(minutes)} min"
     elif domain == "thermal":
+        has_skin = any(c.skin_resid is not None for c in tick.crew)
         numbers = [
             _num("Cabin temperature", cabin.temp, "C", cabin.temp0),
-            _num("Skin residual", facts.skin_resid, "C", 0.0),
+            _num("Skin residual", facts.skin_resid if has_skin else None, "C", 0.0),
         ]
-        if cabin.temp is None:
+        if cabin.temp is not None and not has_skin:
+            lo, hi = th.value("thermal.cabin_temp_c.lo"), th.value("thermal.cabin_temp_c.hi")
+            reason = (
+                f"Cabin {cabin.temp:.1f} C, normal band {lo:.0f} to {hi:.0f} C; "
+                "no skin temperature from a wearable."
+            )
+        elif cabin.temp is None:
             reason = (
                 "No cabin temperature in the last 5 min; "
                 f"skin {facts.skin_resid:+.1f} C from baseline."
@@ -1005,8 +1022,12 @@ def run(settings: Settings, period_s: float = 5.0) -> None:
     """Analyse new minutes forever."""
     conn = connect(settings.db_path)
     th = load_thresholds()
-    p = Params()
-    log.info("analytics started on %s", settings.db_path)
+    p = Params(learning_s=settings.learning_s)
+    log.info(
+        "analytics started on %s (baseline learning %.0f min)",
+        settings.db_path,
+        p.learning_s / 60,
+    )
     while True:
         started = time.monotonic()
         try:

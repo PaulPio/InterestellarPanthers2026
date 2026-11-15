@@ -18,6 +18,7 @@ class Settings:
     raw_retention_days: int
     public_port: int
     public_key: str | None
+    learning_s: float = 900.0  # how long a new crew member's baseline learns before alerts
 
 
 def load_settings() -> Settings:
@@ -32,4 +33,5 @@ def load_settings() -> Settings:
         raw_retention_days=int(env("CCM_RAW_RETENTION_DAYS", "7")),
         public_port=int(env("CCM_PUBLIC_PORT", "8001")),
         public_key=env("CCM_PUBLIC_KEY") or None,
+        learning_s=float(env("CCM_LEARNING_S", "900")),
     )

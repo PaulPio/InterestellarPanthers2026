@@ -1,0 +1,138 @@
+"""The wearable firmware's messages (firmware/ccm_wearable), from MQTT to the dashboard API."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from dataclasses import replace
+from pathlib import Path
+from typing import Any
+
+import pytest
+from ccm_sim import contracts
+from fastapi.testclient import TestClient
+
+from ccm_gateway.adapter import NodeStatus, WearableTelemetry, normalize
+from ccm_gateway.analytics import Params, process_pending
+from ccm_gateway.api import create_app
+from ccm_gateway.config import load_settings
+from ccm_gateway.ingest import store
+
+FIXTURES = Path(__file__).parent / "fixtures"
+TOPIC = "ccm/wearable/telemetry"
+T0 = 1_794_715_200  # a whole minute
+
+
+def lines() -> list[dict[str, Any]]:
+    text = (FIXTURES / "firmware_wearable.jsonl").read_text(encoding="utf-8")
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def norm(msg: dict[str, Any], t_recv: float = T0) -> WearableTelemetry:
+    record = normalize(TOPIC, json.dumps(msg).encode(), t_recv)
+    assert isinstance(record, WearableTelemetry), msg
+    return record
+
+
+def test_finger_on_message() -> None:
+    r = norm(lines()[0], 1_794_715_000.4)
+    assert (r.id, r.crew, r.src, r.seq) == ("W1", "W1", "hw", 12)
+    assert r.t_meas == 1_794_715_000  # the node's clock is set, so its measured time is kept
+    assert (r.hr, r.spo2, r.skin_c) == (72, 97, 33.41)
+    assert r.act == pytest.approx(0.214 / 9.80665)  # m/s^2 to g
+    assert r.ibi == (830, 845, 812, 861, 840)
+    assert r.batt is None and r.motion is False
+
+
+def test_finger_off_message() -> None:
+    r = norm(lines()[1])
+    assert (r.hr, r.spo2, r.ibi) == (None, None, ())
+    assert r.skin_c == 33.38
+
+
+def test_clock_not_set_and_a_missing_sensor() -> None:
+    r = norm(lines()[2], T0 + 0.5)
+    assert r.t_node == 37 and r.t_meas == T0 + 0.5  # seconds since power-on: use receive time
+    assert r.skin_c is None  # TMP117 missing
+    assert r.motion is True and r.act == pytest.approx(5.1 / 9.80665)
+
+
+def test_bad_values_are_dropped_or_rejected() -> None:
+    msg = dict(lines()[0], ibi=[100, 830, 2500, True, 845])
+    assert norm(msg).ibi == (830, 845)  # out-of-range and non-integer beat gaps dropped
+    for bad in ({"id": "C1"}, {"motion": "yes"}, {"hr": 400}, {"node": "cabin"}):
+        assert normalize(TOPIC, json.dumps(dict(lines()[0], **bad)).encode(), T0) is None
+
+
+def test_plain_text_status() -> None:
+    for state in ("online", "offline"):
+        r = normalize("ccm/wearable/status", state.encode(), T0)
+        assert isinstance(r, NodeStatus)
+        assert (r.node, r.id, r.state, r.src) == ("wearable", "W1", state, "hw")
+
+
+def wearable(conn: sqlite3.Connection, seq: int, t: float, finger: bool = True) -> None:
+    beat = 920 + (seq % 7) * 6  # a resting heart around 65 bpm with some variability
+    msg: dict[str, Any] = {
+        "node": "wearable",
+        "id": "W1",
+        "seq": seq,
+        "t_node": int(t),
+        "hr": 65 if finger else None,
+        "spo2": 97 if finger else None,
+        "skin_c": 33.4,
+        "act": 0.15,
+        "motion": False,
+        "batt": None,
+        "ibi": [beat, beat + 12, beat - 9, beat + 4, beat - 7] if finger else [],
+    }
+    if not finger:
+        msg["finger"] = False
+    record = normalize(TOPIC, json.dumps(msg).encode(), t + 0.3)
+    assert record is not None
+    store(conn, record)
+
+
+def status(conn: sqlite3.Connection, learning_s: float = 900) -> dict[str, Any]:
+    process_pending(conn, Params(learning_s=learning_s))
+    settings = replace(load_settings(), learning_s=learning_s)
+    body: dict[str, Any] = TestClient(create_app(conn, settings)).get("/api/status").json()
+    assert contracts.errors("status", body) == []
+    return body
+
+
+def cardio(body: dict[str, Any]) -> dict[str, Any]:
+    return next(c for c in body["cards"] if c["domain"] == "cardio")
+
+
+def test_the_real_wearable_reaches_the_dashboard(conn: sqlite3.Connection) -> None:
+    store(conn, normalize("ccm/wearable/status", b"online", T0))  # type: ignore[arg-type]
+    for i in range(12 * 20):  # 20 minutes, one message every 5 s
+        wearable(conn, i, T0 + i * 5)
+    conn.commit()
+    body = status(conn)
+    [w1] = body["crew"]
+    assert (w1["id"], w1["src"], w1["online"]) == ("W1", "hw", True)  # the Hardware badge
+    assert w1["baseline"] == "ready"  # 15 min of learning are over
+    hr = next(n for n in cardio(body)["numbers"] if n["label"].startswith("Resting HR"))
+    assert hr["value"] == 65
+
+
+def test_still_learning_before_fifteen_minutes(conn: sqlite3.Connection) -> None:
+    for i in range(12 * 10):  # 10 minutes
+        wearable(conn, i, T0 + i * 5)
+    conn.commit()
+    body = status(conn)
+    assert body["crew"][0]["baseline"] == "learning"
+    assert cardio(body)["reason"].startswith("Learning the baseline; resting HR 65")
+
+
+def test_no_finger_is_said_plainly(conn: sqlite3.Connection) -> None:
+    for i in range(12 * 20):
+        wearable(conn, i, T0 + i * 5)
+    for i in range(12 * 20, 12 * 27):  # then 7 minutes with the finger off
+        wearable(conn, i, T0 + i * 5, finger=False)
+    conn.commit()
+    assert (
+        cardio(status(conn))["reason"] == "W1 connected; no finger on the pulse sensor for 5 min."
+    )

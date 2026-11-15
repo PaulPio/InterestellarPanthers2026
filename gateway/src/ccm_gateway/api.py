@@ -97,14 +97,16 @@ class Checkin(_Strict):
     note: str | None = Field(max_length=500)
 
 
-def learning_status(conn: sqlite3.Connection, *, now: float | None = None) -> dict[str, Any]:
+def learning_status(
+    conn: sqlite3.Connection, *, now: float | None = None, learning_s: float = LEARNING_S
+) -> dict[str, Any]:
     """All-green learning status from ``crew`` and ``node_status``.
 
     Analytics can call this for the same body the API serves before the first ``kv['status']``
     snapshot exists. Every crew member is still learning; no measured numbers are invented.
     """
     t = _clock(conn) if now is None else now
-    ends = t + LEARNING_S
+    ends = t + learning_s
     wearable = _wearable_nodes(conn)
     crew = []
     for row in conn.execute("SELECT id, name FROM crew ORDER BY id"):
@@ -134,7 +136,7 @@ def learning_status(conn: sqlite3.Connection, *, now: float | None = None) -> di
         "crew_status": {
             "level": "green",
             "domain": None,
-            "sentence": learning_sentence(LEARNING_S),
+            "sentence": learning_sentence(learning_s),
             "attribution": None,
             "action": None,
         },
@@ -163,9 +165,9 @@ def create_app(conn: sqlite3.Connection, settings: Settings) -> FastAPI:
             try:
                 validate("status", body)
             except ContractError:
-                body = learning_status(conn)
+                body = learning_status(conn, learning_s=settings.learning_s)
         else:
-            body = learning_status(conn)
+            body = learning_status(conn, learning_s=settings.learning_s)
         return body
 
     @app.get("/api/history")

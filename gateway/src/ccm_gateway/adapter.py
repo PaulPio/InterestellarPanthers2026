@@ -48,11 +48,11 @@ class WearableTelemetry:
     t_recv: float
     hr: int | None
     spo2: int | None
-    skin_c: float
-    act: float
+    skin_c: float | None  # None: the wearable's TMP117 is missing
+    act: float | None  # g; None: the wearable's MPU6050 is missing
     motion: bool
     ibi: tuple[int, ...]
-    batt: float
+    batt: float | None  # None: no battery sense wired
 
 
 @dataclass(frozen=True)
@@ -150,6 +150,64 @@ def _cabin(data: dict[str, Any], t_recv: float) -> CabinTelemetry:
     )
 
 
+PLAIN_STATUS: dict[str, tuple[Node, str]] = {
+    "ccm/cabin/status": ("cabin", "C1"),
+    "ccm/wearable/status": ("wearable", "W1"),
+}
+G = 9.80665  # m/s^2 per g
+EPOCH_MIN = 1_700_000_000  # a t_node below this is seconds since power-on, not clock time
+
+
+def _optional(data: dict[str, Any], name: str, low: float, high: float) -> float | None:
+    value = data.get(name)
+    return None if value is None else _number(value, low, high)
+
+
+def _wearable_hw(data: dict[str, Any], t_recv: float) -> WearableTelemetry:
+    """The wearable firmware's message, as it sends it (``firmware/ccm_wearable``).
+
+    It has no ``src``, ``crew`` or ``t_meas``; ``t_node`` is seconds since power-on until the
+    Pi's time server answers; ``skin_c``, ``act`` and ``batt`` are null when that part is
+    missing; ``act`` is in m/s^2 (the contract uses g); ``finger:false`` marks no finger.
+    """
+    if data.get("node") != "wearable" or not isinstance(data.get("id"), str):
+        raise ValueError("hardware wearable requires node=wearable and an id")
+    if re.fullmatch(r"W[0-9]+", data["id"]) is None:
+        raise ValueError("invalid wearable id")
+    seq = int(_number(data.get("seq"), 0, 2**32 - 1, integer=True))
+    t_node = _number(data.get("t_node", 0), 0)
+    hr = _optional(data, "hr", 25, 250)
+    spo2 = _optional(data, "spo2", 50, 100)
+    act_ms2 = _optional(data, "act", 0, 1000)
+    motion = data.get("motion", False)
+    if not isinstance(motion, bool):
+        raise ValueError("motion must be true or false")
+    raw_ibi = data.get("ibi", [])
+    if not isinstance(raw_ibi, list):
+        raise ValueError("ibi must be a list")
+    ibi = tuple(
+        int(v)
+        for v in raw_ibi
+        if isinstance(v, int) and not isinstance(v, bool) and 300 <= v <= 2000
+    )[:20]
+    return WearableTelemetry(
+        id=data["id"],
+        crew=data["id"],
+        seq=seq,
+        src="hw",
+        t_node=t_node,
+        t_meas=t_node if t_node >= EPOCH_MIN else t_recv,
+        t_recv=t_recv,
+        hr=None if hr is None else round(hr),
+        spo2=None if spo2 is None else round(spo2),
+        skin_c=_optional(data, "skin_c", 10, 45),
+        act=None if act_ms2 is None else act_ms2 / G,
+        motion=motion,
+        ibi=ibi,
+        batt=_optional(data, "batt", 2.5, 4.5),
+    )
+
+
 def normalize(topic: str, payload: bytes, t_recv: float) -> Normalized | None:
     """Reject malformed input with a reason; never let a bad packet stop ingest."""
     if topic == "ccm/cabin/info":
@@ -157,11 +215,13 @@ def normalize(topic: str, payload: bytes, t_recv: float) -> Normalized | None:
         return None
     try:
         _number(t_recv, 0)
-        if topic == "ccm/cabin/status":
+        if topic in PLAIN_STATUS:
+            # The firmware publishes plain text with no id: one node of each kind exists.
             state = payload.decode("utf-8").strip()
             if state not in ("online", "offline"):
                 raise ValueError("expected plain-text online or offline")
-            return NodeStatus("cabin", "C1", cast(State, state), t_recv, t_recv, "hw")
+            plain_node, plain_id = PLAIN_STATUS[topic]
+            return NodeStatus(plain_node, plain_id, cast(State, state), t_recv, t_recv, "hw")
         status = re.fullmatch(r"ccm/(cabin|wearable)/status/([WC][0-9]+)", topic)
         kinds = {
             "ccm/cabin/telemetry": "cabin_telemetry",
@@ -177,6 +237,8 @@ def normalize(topic: str, payload: bytes, t_recv: float) -> Normalized | None:
         _finite(data)
         if topic == "ccm/cabin/telemetry":
             return _cabin(data, t_recv)
+        if topic == "ccm/wearable/telemetry" and "src" not in data:
+            return _wearable_hw(data, t_recv)
         kind = "node_status" if status is not None else kinds[topic]
         validate(kind, data)
         if status is not None:
