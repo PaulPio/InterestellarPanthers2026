@@ -4,6 +4,8 @@ The Pi keeps the only database (SQLite) and exposes a read-only API (``ccm-gatew
 through Tailscale Funnel. This app, running on Vercel:
 
 - forwards each ``GET /api/*`` to the Pi (``source_mode: "live"``);
+- serves the simulator demo for a GET that carries ``ccm-source: demo``, so one browser can
+  watch the scripted scenario while everyone else stays on the Pi;
 - falls back to the simulator demo (``source_mode: "mock"``) when the Pi is off, offline or not
   configured, so the site never goes dark;
 - refuses writes while the Pi is live (409): approvals, check-ins and settings are made on the
@@ -63,7 +65,10 @@ def create_app(pi: PiSource | None = None, wall: WallClockMock | None = None) ->
         path = request.url.path
         if not path.startswith("/api/") or path == INFO_PATH:
             return await call_next(request)
-        if pi is not None:
+        # A browser on Demo asks for the scripted scenario. Writes still go to the
+        # live-Pi rule below, so one viewer's choice cannot change the Pi.
+        demo = request.method == "GET" and request.headers.get("ccm-source", "").lower() == "demo"
+        if pi is not None and not demo:
             if request.method == "GET":
                 answer = await pi.get(path, request.url.query)
                 if answer is not None:

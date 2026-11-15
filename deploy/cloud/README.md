@@ -56,3 +56,6 @@ Optional variables: `CCM_ROTATION` (the demo's scenarios, default
   API refuses them too.
 - **Fallback**: if the Pi doesn't answer within 3 s, or answers with an error, the request is
   served by the simulator and the Pi is skipped for 15 s before it is tried again.
+- **Demo**: a GET carrying the header `ccm-source: demo` skips the Pi and is served by the
+  simulator. The public dashboard's Settings page sends that header for the browser that chose
+  Demo. Other browsers, and every write, are unchanged. Writes stay refused while the Pi is live.

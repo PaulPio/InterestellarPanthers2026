@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Settings } from "../src/api/types.gen";
+import { sourceLabel } from "../src/components/MissionCard";
 import { fixture, mockApi, polled, renderRoute, status } from "./helpers";
 
 const settings = fixture<Settings>("settings.default");
@@ -162,5 +163,55 @@ describe("settings view", () => {
       within(screen.getByRole("alertdialog")).getByRole("button", { name: "Reset baseline" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("Nothing was changed");
+  });
+
+  it("hides the data source on the Pi dashboard", async () => {
+    localStorage.clear();
+    serve();
+    renderRoute("/settings", polled(status("all_green")));
+    await loaded();
+    expect(screen.queryByRole("region", { name: "Data source" })).toBeNull();
+  });
+
+  it("switches this browser to the demo and sends the header", async () => {
+    localStorage.clear();
+    const calls = mockApi((url, init) => {
+      if (url.pathname === "/api/_cloud/info") {
+        return {
+          mode: "live",
+          pi_configured: true,
+          pi_error: null,
+          rotation: ["scrubber_failure"],
+        };
+      }
+      if (url.pathname === "/api/settings" && init?.method !== "PUT") return settings;
+      return undefined;
+    });
+    renderRoute("/settings", polled(status("all_green")));
+    const section = await screen.findByRole("region", { name: "Data source" });
+    expect(within(section).getByRole("radio", { name: "Live" })).toBeChecked();
+    expect(within(section).getByRole("status")).toHaveTextContent("The Pi did not answer");
+    await userEvent.click(within(section).getByRole("radio", { name: "Demo" }));
+    expect(within(section).queryByRole("status")).toBeNull();
+    await waitFor(() => {
+      const sent = calls.some((c) => {
+        if (c.url.pathname !== "/api/settings") return false;
+        const headers = c.init?.headers as Record<string, string> | undefined;
+        return headers?.["ccm-source"] === "demo";
+      });
+      expect(sent).toBe(true);
+    });
+    expect(localStorage.getItem("ccm-data-source")).toBe("demo");
+    localStorage.clear();
+  });
+});
+
+describe("source label", () => {
+  it("follows the browser choice only on the public site", () => {
+    expect(sourceLabel("live", "live", true)).toBe("Live");
+    expect(sourceLabel("mock", "demo", true)).toBe("Demo");
+    expect(sourceLabel("mock", "live", true)).toBe("Demo, the Pi did not answer");
+    expect(sourceLabel("mock", "live", false)).toBe("Simulated");
+    expect(sourceLabel("live", "demo", false)).toBe("Live");
   });
 });

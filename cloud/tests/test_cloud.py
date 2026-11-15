@@ -92,6 +92,15 @@ def test_a_reachable_pi_is_served_live(fake: FakePi, clock: Clock) -> None:
     assert client.get("/api/_cloud/info").json()["mode"] == "live"
 
 
+def test_a_demo_header_skips_a_live_pi(fake: FakePi, clock: Clock) -> None:
+    client = make_client(fake, clock)
+    status = client.get("/api/status", headers={"ccm-source": "demo"}).json()
+    assert status["source_mode"] == "mock"
+    assert fake.requests == []
+    body = {"crew": "W1", "mood": 3, "sleep": 3}
+    assert client.post("/api/checkin", json=body, headers={"ccm-source": "demo"}).status_code == 409
+
+
 def test_writes_are_refused_while_the_pi_is_live(fake: FakePi, clock: Clock) -> None:
     client = make_client(fake, clock)
     body = {"crew": "W1", "mood": 3, "sleep": 3}

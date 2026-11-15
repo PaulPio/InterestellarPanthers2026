@@ -2,8 +2,12 @@ import { useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import type { Settings as SettingsData } from "../api/types.gen";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { usePolling } from "../hooks/usePolling";
+import { useCloudInfo } from "../hooks/useCloudInfo";
+import { useStatusContext } from "../hooks/StatusContext";
+import { STALE_MS, usePolling } from "../hooks/usePolling";
+import { setDataSource } from "../lib/dataSource";
 import { clockTime } from "../lib/format";
+import { useDataSource } from "../lib/useDataSource";
 
 type Tier = keyof SettingsData["auto_approve"];
 
@@ -14,7 +18,10 @@ const TIERS: { key: Tier; label: string; help: string }[] = [
 ];
 
 export default function Settings() {
-  const { data, error } = usePolling((s) => api.settings(s), 30_000);
+  const source = useDataSource();
+  const cloud = useCloudInfo();
+  const { data: status } = useStatusContext();
+  const { data, error } = usePolling((s) => api.settings(s), 30_000, STALE_MS, source);
   const [latest, setLatest] = useState<SettingsData | null>(null);
   const settings = latest ?? data;
 
@@ -82,6 +89,45 @@ export default function Settings() {
   return (
     <div className="flex flex-col gap-2">
       <h1 className="text-base font-semibold">Settings</h1>
+      {cloud ? (
+        <section aria-label="Data source" className="pane p-2.5">
+          <h2 className="micro-label">Data source</h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Live reads the cabin node through the Pi. Demo plays a scripted scenario in this browser
+            only. Heart rate stays simulated until the wearable sends its own data.
+          </p>
+          <div className="mt-1.5 flex flex-col">
+            {(
+              [
+                ["live", "Live"],
+                ["demo", "Demo"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="flex min-h-7 items-center gap-2 text-xs">
+                <input
+                  type="radio"
+                  name="data-source"
+                  value={value}
+                  checked={source === value}
+                  onChange={() => setDataSource(value)}
+                  className="h-4 w-4 accent-accent"
+                />
+                <span className="font-semibold">{label}</span>
+              </label>
+            ))}
+          </div>
+          {source === "live" && !cloud.pi_configured ? (
+            <p role="status" className="mt-1 text-xs">
+              The public site is not connected to the Pi yet, so Live shows the demo.
+            </p>
+          ) : null}
+          {source === "live" && cloud.pi_configured && status?.source_mode === "mock" ? (
+            <p role="status" className="mt-1 text-xs">
+              The Pi did not answer, so this browser is showing the demo.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
       {!settings ? (
         <p className="text-muted">
           {error ? "Could not load the settings." : "Loading the settings."}
