@@ -548,13 +548,14 @@ def _levels(tick: Tick, state: dict[str, Any], p: Params, th: Thresholds) -> dic
     # Thermal is a cabin card. Red: the cabin is outside its band, or crew skin temperature has
     # sat a red-size step from baseline for the hold time. Yellow: the cabin has swung far enough
     # from its own baseline to move skin temperature by the yellow step, or it already has.
-    # One crew member's skin change alone is individual and stays off this card.
+    # One crew member's skin change alone is individual and stays off this card, even when
+    # only one crew member is wearing a sensor.
     lo, hi = th.value("thermal.cabin_temp_c.lo"), th.value("thermal.cabin_temp_c.hi")
     skin_y = th.value("thermal.skin_residual_c.yellow")
     skin_r = th.value("thermal.skin_residual_c.red")
     hold_s = th.value("thermal.skin_residual_c.duration_min") * MINUTE
     resids = [abs(c.skin_resid) for c in tick.crew if c.skin_resid is not None]
-    wide = min(p.cabin_wide_crew, max(len(tick.crew), 1))
+    wide = p.cabin_wide_crew
     if cabin.temp is not None and cabin.temp0 is not None:
         if abs(cabin.temp - cabin.temp0) >= skin_y / p.skin_cabin_gain:
             levels["thermal"] = "yellow"

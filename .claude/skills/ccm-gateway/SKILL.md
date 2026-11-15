@@ -67,7 +67,9 @@ Per minute, `analyse_minute`:
    - air: CO2 ≥ 2.5 mmHg yellow, ≥ 3.0 red; VOC index ≥ 250 yellow
    - thermal: cabin outside 18–27 °C red; cabin swung 2 °C from its baseline, or ≥ 2 crew with
      skin ≥ 0.5 °C from baseline, yellow; ≥ 2 crew at ≥ 1.0 °C for 30 min red. One person's skin
-     change alone is individual and stays off this card.
+     change alone is individual and stays off this card, also when only one crew member wears a
+     sensor. A wearable message with `finger:false` carries the board's temperature, not skin:
+     it is kept in `raw_wearable` but never rolled up, shown or learned as `skin_c`.
    - radiation: one exceeding window yellow, two in a row red
 4. **Attribution** (`attribute`), cardio only: ≥ 2 crew changed **and** the cabin changed →
    `cabin`; exactly one changed, cabin steady, ≥ 2 crew ready → `individual`; anything else →

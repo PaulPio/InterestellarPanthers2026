@@ -99,6 +99,8 @@ def _store(conn: sqlite3.Connection, record: Normalized) -> bool:
     if inserted:
         for metric in rollups:
             value = getattr(record, metric)
+            if metric == "skin_c" and not getattr(record, "on_skin", True):
+                continue  # no finger: the board's temperature, not the skin's
             if value is not None:
                 add_sample(conn, record.t_meas, subject, metric, value)
     _status(conn, NodeStatus(node, record.id, "online", record.t_recv, record.t_recv, record.src))

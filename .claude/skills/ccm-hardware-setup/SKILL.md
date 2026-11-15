@@ -101,6 +101,7 @@ Never expose 1883 or 8000 to the internet.
 | Cabin sends `co2_mmhg`, omits stale sensors | `co2_mmhg` is dropped; missing values are stored as null |
 | Wearable `act` in m/s² | divided by 9.80665 (the contract and analytics use g) |
 | Wearable `skin_c`, `act`, `batt` may be null | accepted as null |
+| Wearable `finger:false` (no finger on the pulse sensor) | `skin_c` is the board's own heat (3–4 °C above the room): stored raw, not used as skin temperature |
 | Plain-text status with no id | `ccm/cabin/status` → C1, `ccm/wearable/status` → W1 |
 | Resends after a reconnect | dropped as duplicates on `(id, seq, t_meas)` |
 

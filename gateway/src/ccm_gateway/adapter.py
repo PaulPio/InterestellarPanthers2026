@@ -53,6 +53,9 @@ class WearableTelemetry:
     motion: bool
     ibi: tuple[int, ...]
     batt: float | None  # None: no battery sense wired
+    # False: no finger on the pulse sensor, so skin_c is the board's own temperature (kept in
+    # raw_wearable, but not a skin reading: never rolled up, shown or learned).
+    on_skin: bool = True
 
 
 @dataclass(frozen=True)
@@ -205,6 +208,7 @@ def _wearable_hw(data: dict[str, Any], t_recv: float) -> WearableTelemetry:
         motion=motion,
         ibi=ibi,
         batt=_optional(data, "batt", 2.5, 4.5),
+        on_skin=data.get("finger") is not False,
     )
 
 

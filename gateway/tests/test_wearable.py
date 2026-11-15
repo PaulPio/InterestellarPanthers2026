@@ -42,18 +42,21 @@ def test_finger_on_message() -> None:
     assert r.act == pytest.approx(0.214 / 9.80665)  # m/s^2 to g
     assert r.ibi == (830, 845, 812, 861, 840)
     assert r.batt is None and r.motion is False
+    assert r.on_skin is True
 
 
 def test_finger_off_message() -> None:
     r = norm(lines()[1])
     assert (r.hr, r.spo2, r.ibi) == (None, None, ())
     assert r.skin_c == 33.38
+    assert r.on_skin is False  # no finger: that is the board's temperature
 
 
 def test_clock_not_set_and_a_missing_sensor() -> None:
     r = norm(lines()[2], T0 + 0.5)
     assert r.t_node == 37 and r.t_meas == T0 + 0.5  # seconds since power-on: use receive time
     assert r.skin_c is None  # TMP117 missing
+    assert r.on_skin is True  # no pulse sensor to say otherwise
     assert r.motion is True and r.act == pytest.approx(5.1 / 9.80665)
 
 
@@ -78,7 +81,9 @@ def test_plain_text_status() -> None:
         assert (r.node, r.id, r.state, r.src) == ("wearable", "W1", state, "hw")
 
 
-def wearable(conn: sqlite3.Connection, seq: int, t: float, finger: bool = True) -> None:
+def wearable(
+    conn: sqlite3.Connection, seq: int, t: float, finger: bool = True, skin: float = 33.4
+) -> None:
     beat = 920 + (seq % 7) * 6  # a resting heart around 65 bpm with some variability
     msg: dict[str, Any] = {
         "node": "wearable",
@@ -87,7 +92,7 @@ def wearable(conn: sqlite3.Connection, seq: int, t: float, finger: bool = True) 
         "t_node": int(t),
         "hr": 65 if finger else None,
         "spo2": 97 if finger else None,
-        "skin_c": 33.4,
+        "skin_c": skin,
         "act": 0.15,
         "motion": False,
         "batt": None,
@@ -177,3 +182,34 @@ def test_heart_rate_now_is_live_and_goes_blank_when_stale(conn: sqlite3.Connecti
     store(conn, normalize("ccm/cabin/status", b"online", last + 20.3))  # type: ignore[arg-type]
     conn.commit()
     assert live_hr(status(conn)) is None
+
+
+def thermal(body: dict[str, Any]) -> dict[str, Any]:
+    return next(c for c in body["cards"] if c["domain"] == "thermal")
+
+
+def test_board_heat_without_a_finger_is_not_skin(conn: sqlite3.Connection) -> None:
+    # 20 min lying on the desk (the board warms to 29 C), then a finger on at 33.6 C
+    for i in range(12 * 20):
+        wearable(conn, i, T0 + i * 5, finger=False, skin=27.7 + i * 0.008)
+    for i in range(12 * 20, 12 * 30):
+        wearable(conn, i, T0 + i * 5, skin=33.6)
+    conn.commit()
+    first_on = T0 + 12 * 20 * 5
+    rows = conn.execute(
+        "SELECT MIN(t_min) FROM rollup_1m WHERE subject = 'W1' AND metric = 'skin_c'"
+    ).fetchone()
+    assert rows[0] >= first_on - 60  # no skin rollups while the finger was off
+    stored = conn.execute("SELECT COUNT(skin_c) FROM raw_wearable").fetchone()[0]
+    assert stored == 12 * 30  # the raw readings are all kept
+    body = status(conn)
+    assert thermal(body)["level"] == "green"
+
+
+def test_one_wearer_alone_does_not_change_the_cabin_card(conn: sqlite3.Connection) -> None:
+    for i in range(12 * 20):  # learn 33.4 C
+        wearable(conn, i, T0 + i * 5)
+    for i in range(12 * 20, 12 * 45):  # then 25 min a full 4 C warmer
+        wearable(conn, i, T0 + i * 5, skin=37.4)
+    conn.commit()
+    assert thermal(status(conn))["level"] == "green"
