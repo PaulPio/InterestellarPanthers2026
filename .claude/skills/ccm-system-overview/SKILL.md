@@ -40,13 +40,14 @@ Everything downstream of MQTT cannot tell hardware from simulator, except the `s
 | `deploy/pi/` | Raspberry Pi 4 install script, systemd units, hotspot, NTP | Written; not yet run on a Pi |
 | `docs/` | Demo runbook, backend handoff, plan, decisions (`DECISIONS.md` D1–D24) | Reference |
 
-No wearable firmware exists yet; the simulator plays crew W1, W2 and W3.
+The wearable (`firmware/ccm_wearable/`) reports as crew W1; simulated crew are off on the Pi unless `CCM_SIM_CREW=1`.
 
 ## Which skill next
 
 | Task | Skill |
 |---|---|
 | Message fields, topics, units, firmware quirks, changing the contract | `ccm-data-contract` |
+| Wiring, flashing and connecting the Pi and the two ESP32 nodes | `ccm-hardware-setup` |
 | Generating data, scenarios, the mock API, the expectation oracle | `ccm-simulator` |
 | SQLite tables, ingest, analytics, card rules, evaluation | `ccm-gateway` |
 | Screens, routes, polling, copy rules, generated types | `ccm-dashboard` |

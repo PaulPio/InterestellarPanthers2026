@@ -1,3 +1,7 @@
+# Firmware
+
+Two ESP32 nodes talk to the Raspberry Pi over WiFi and MQTT: the cabin node (`ccm_cabin_node/`, this first part) and the wearable (`ccm_wearable/`, [below](#wearable-node-firmware)). How they connect to the Pi is in the `ccm-hardware-setup` skill and `deploy/pi/README.md`.
+
 # Cabin node firmware
 
 Firmware for the cabin (environmental) node: an ESP32 DevKitC with an SCD41 (CO2, temperature,
@@ -117,3 +121,75 @@ published in the previous 30 s, so ingest must tolerate a repeated `(id, seq, t_
   the pulse swings to 5 V (`config.h`).
 - The remote serial monitor is read-only but has no password, so anyone on the network can read it.
 - This is a decision-support prototype, not a safety or medical device.
+
+# Wearable node firmware
+
+Firmware for the wearable (`ccm_wearable/`): an ESP32-S3 (SuperMini HW-747, or a XIAO ESP32-S3
+with the same GPIO numbers) with a MAX30102 (pulse, SpO2 and beat-to-beat intervals), a TMP117
+(skin temperature) and an MPU6050 (motion). It publishes one JSON message every 5 s to the Pi's
+MQTT broker over WiFi. BLE is in the code but off (`USE_BLE 0`).
+
+**Prototype for a hackathon demo, not a medical device.**
+
+Firmware by Adrian Morton, uploaded to `master` as `ccm_wearable.ino`. The copy here differs only
+in moving the WiFi details to `secrets.h` and adding the optional `MQTT_HOST`.
+
+## Build and flash (Arduino IDE)
+
+1. Board **ESP32S3 Dev Module**, **USB CDC On Boot: Enabled** (Serial over the USB-C port),
+   **Flash Size: 4MB**.
+2. Libraries: **SparkFun MAX3010x Pulse and Proximity Sensor Library** and **PubSubClient**. The
+   TMP117 and MPU6050 are read with plain I2C, so they need none.
+3. Copy `secrets.example.h` to `secrets.h` in `firmware/ccm_wearable/` and fill it in. `secrets.h`
+   is git-ignored: never commit it.
+
+   ```c
+   #define WIFI_SSID "your-wifi"
+   #define WIFI_PASS "your-password"
+   #define MQTT_HOST "192.168.1.50"   // the Pi's address; leave out when the Pi is the hotspot
+   ```
+
+4. Open `firmware/ccm_wearable/ccm_wearable.ino`, pick the board's port and upload. The Serial
+   Monitor (115200 baud) prints every sensor once a second and each message as `SENT> {...}`.
+
+## Wiring
+
+| Signal | GPIO | Goes to |
+|---|---|---|
+| I2C SDA | 3 | MAX30102, TMP117, MPU6050 |
+| I2C SCL | 4 | MAX30102, TMP117, MPU6050 |
+| MAX30102 INT | 1 | wired, not used (the firmware polls) |
+| 3V3, GND | | all three sensors |
+
+I2C addresses: `0x57` MAX30102, `0x48`-`0x4B` TMP117, `0x68`/`0x69` MPU6050. If nothing answers on
+GPIO 3/4, the firmware tries every pair of pads 1 to 13 and prints the pins that work. A missing
+sensor is added to the node name (`CCM-W1-noTMP`) and its fields are sent as `null`.
+
+## Settings at the top of the sketch
+
+| Setting | Default | What it does |
+|---|---|---|
+| `NODE_ID` | `"W1"` | Crew id; the Pi shows it on the crew chip |
+| `FINGER_IR_MIN` | `50000` | Below this infrared level there is no finger. Tune on the bench |
+| `ACT_MOTION_THRESH` | `0.50` | m/s²; activity above it sets `motion: true` |
+| `LED_BRIGHTNESS` | `0x3F` | Lower it if the infrared reading saturates near 262143 |
+| `PRINT_EVERY_SECOND` | `1` | One Serial line per second with all readings |
+
+## What it publishes
+
+| Topic | Retained | Contents |
+|---|---|---|
+| `ccm/wearable/telemetry` | no | One JSON message every 5 s |
+| `ccm/wearable/status` | yes | `online` on connect, `offline` as the MQTT last will |
+
+```json
+{"node":"wearable","id":"W1","seq":12,"t_node":1794715000,"hr":72,"spo2":97,"skin_c":33.41,
+ "act":0.214,"motion":false,"ibi":[830,845,812,861,840],"batt":null}
+```
+
+- `hr` and `spo2` are `null` with no finger, and `"finger":false` is added; `ibi` is then empty.
+- `act` is the standard deviation of acceleration over the 5 s window, in **m/s²**. The Pi
+  converts it to g.
+- `t_node` is clock time once the Pi's time server answers, otherwise seconds since power-on (the
+  Pi then uses its own receive time).
+- The last 60 s of messages are kept and resent after a reconnect; the Pi drops duplicates.

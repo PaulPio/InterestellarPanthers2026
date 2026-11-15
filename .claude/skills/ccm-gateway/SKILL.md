@@ -57,8 +57,8 @@ Per minute, `analyse_minute`:
    neighbouring hours (`_expected`), because heart rate follows a daily rhythm. A change counts
    when it is both > 3 σ from baseline **and** past the detectability line (10 bpm / 8 ms), held
    3 minutes (`_debounce`; it clears after 10). One sign → yellow; both signs at 2× the line, or
-   SpO2 < 92 → red. No judgement while moving (activity > 0.3 g) or during the first 2 h after
-   enrollment. Baselines learn **only from quiet, resting minutes**, so an episode never becomes
+   SpO2 < 92 → red. No judgement while moving (activity > 0.3 g) or during the learning period after
+   enrollment (`CCM_LEARNING_S`, default 15 min). Baselines learn **only from quiet, resting minutes**, so an episode never becomes
    the new normal.
 2. **Cabin** (`_analyse_cabin`, `_radiation`): CO2 converted to mmHg. Radiation uses fixed
    10-minute windows and a Poisson test, exceed when `N > λ + 4√λ`; a partial window is scaled

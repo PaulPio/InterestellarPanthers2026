@@ -101,15 +101,22 @@ The hotspot uses `wlan0` as an access point with address `192.168.4.1/24` and Ne
 shared IPv4 (DHCP for clients). Because `wlan0` is busy being the access point, use Ethernet or a
 USB WiFi adapter if the Pi itself needs internet.
 
-## 7. Configure the ESP32 cabin node
+## 7. Configure the two ESP32 nodes
 
-In `firmware/ccm_cabin_node/`:
+Both nodes need the WiFi the Pi is on and the Pi's address on it. Put them in each node's
+git-ignored `secrets.h` (copy `secrets.example.h`); never commit them.
 
-1. Copy `secrets.example.h` to `secrets.h` and enter the hotspot SSID and password from
-   `/etc/ccm/hotspot.env`.
-2. In `config.h`, set `MQTT_ENABLED` to `1`. The default `MQTT_HOST` is already `192.168.4.1`.
-3. Flash the board. Build and flash steps are in the firmware README
-   (`firmware/README.md`).
+- **Pi as the hotspot**: the WiFi is the one in `/etc/ccm/hotspot.env`, and the Pi is
+  `192.168.4.1`, which both nodes use by default.
+- **A shared WiFi, such as a phone hotspot**: set `MQTT_HOST` in both `secrets.h` files to the
+  Pi's address there (`hostname -I` on the Pi). If the Pi's address changes, update it and reflash.
+
+Cabin node (`firmware/ccm_cabin_node/`): also set `MQTT_ENABLED 1` (in `secrets.h` or `config.h`).
+Wearable (`firmware/ccm_wearable/`): nothing else to change. Build and flash steps for both are in
+`firmware/README.md`; the full hardware reference is the `ccm-hardware-setup` skill.
+
+A new crew member's baseline learns for `CCM_LEARNING_S` seconds (default 900, 15 minutes) before
+cardiovascular alerts can show.
 
 ## 8. Verify
 
@@ -201,6 +208,7 @@ All units read `/etc/ccm/ccm.env`. They restart on failure; `ccm-sim-crew` resta
 | `CCM_DASHBOARD_DIST` | `/opt/ccm/dashboard/dist` |
 | `CCM_RAW_RETENTION_DAYS` | `7` |
 | `CCM_PUBLIC_PORT` / `CCM_PUBLIC_KEY` | `8001` / blank |
+| `CCM_LEARNING_S` | `900` |
 
 The public API stays off while `CCM_PUBLIC_KEY` is blank.
 
