@@ -26,7 +26,7 @@ from ccm_gateway.config import Settings
 from ccm_gateway.db import add_sample, connect
 
 LOG = logging.getLogger(__name__)
-CABIN_ROLLUPS = ("co2", "temp_c", "rh", "voc", "pm25", "cpm")
+CABIN_ROLLUPS = ("co2", "temp_c", "rh", "voc", "pm25", "cpm", "c10s")
 WEARABLE_ROLLUPS = ("hr", "spo2", "skin_c", "act")
 
 

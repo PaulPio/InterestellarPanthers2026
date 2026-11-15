@@ -85,11 +85,11 @@ done
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable mosquitto chrony
 $SUDO systemctl restart mosquitto chrony
-$SUDO systemctl enable ccm-ingest.service ccm-analytics.service \
+$SUDO systemctl enable ccm-ingest.service ccm-analytics.service ccm-fallback.service \
   ccm-api.service ccm-sim-crew.service
 
 # The public API runs only once CCM_PUBLIC_KEY is set; without a key it refuses to start.
-units="ccm-ingest ccm-analytics ccm-api ccm-sim-crew"
+units="ccm-ingest ccm-analytics ccm-fallback ccm-api ccm-sim-crew"
 $SUDO systemctl disable --now ccm-uplink.service >/dev/null 2>&1 || true  # replaced by ccm-public
 $SUDO rm -f /etc/systemd/system/ccm-uplink.service
 if $SUDO grep -Eq '^CCM_PUBLIC_KEY=.+' "$CCM_ETC/ccm.env"; then

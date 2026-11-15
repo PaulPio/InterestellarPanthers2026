@@ -6,7 +6,7 @@ description: Use when reading, producing or validating CCM MQTT messages or /api
 # CCM data contract
 
 `contracts/` is the agreement between firmware, simulator, gateway and dashboard. Version is in
-`contracts/VERSION` (1.1.0), history in `contracts/CHANGELOG.md`, full field docs in
+`contracts/VERSION` (1.2.0), history in `contracts/CHANGELOG.md`, full field docs in
 `contracts/README.md`.
 
 ## MQTT topics (`contracts/mqtt/topics.yaml`)
@@ -57,7 +57,7 @@ messages strictly with the schema, and pass **hardware** messages through the ad
 All routes are under `/api` (D7) so the dashboard owns every other path. `GET /api/status` is
 the big one: `crew_status`, `crew[]`, exactly four `cards` in the fixed order **cardio, air,
 thermal, radiation**, `nodes[]`, `correlation`, `checkin_due`, and `source_mode` (`mock` or
-`live`, the only field that tells the mock and the real API apart). Route behaviors the dashboard
+`live`, the only field that tells the mock and the real API apart). Since 1.2.0 each card may carry `fallback`: `null` or `{sensors, since_t, sentence}`, set while a sensor behind the card is offline and its readings are simulated (D29). There is no "no data" level. Route behaviors the dashboard
 relies on are listed in `docs/handoff-backend.md` section 2.
 
 ## Validating

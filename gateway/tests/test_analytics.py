@@ -49,6 +49,7 @@ def cabin_minute(
             ("temp_c", temp),
             ("voc", voc),
             ("cpm", counts_10s * 6),
+            ("c10s", counts_10s),
         ):
             add_sample(conn, t, "C1", metric, float(value))
 

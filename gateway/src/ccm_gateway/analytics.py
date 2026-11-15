@@ -23,6 +23,7 @@ from ccm_sim.mockapi import templates as tpl
 from ccm_sim.thresholds import Thresholds, load_thresholds
 from ccm_sim.units import ppm_to_mmhg
 
+from ccm_gateway import sensors
 from ccm_gateway.config import Settings
 from ccm_gateway.db import connect
 
@@ -105,6 +106,8 @@ class CabinView:
     cpm: float | None = None
     cpm0: float | None = None
     radiation_streak: int = 0
+    simulated: set[str] = field(default_factory=set)  # metrics shown from the simulator
+    offline: dict[str, float] = field(default_factory=dict)  # sensor -> offline since
 
 
 @dataclass
@@ -356,9 +359,9 @@ def _crew_rows(conn: sqlite3.Connection, t: float) -> list[sqlite3.Row]:
     return conn.execute("SELECT id, name, enrolled_t FROM crew ORDER BY id").fetchall()
 
 
-def _cabin_id(conn: sqlite3.Connection) -> str | None:
-    row = conn.execute("SELECT id FROM raw_cabin ORDER BY t_meas DESC LIMIT 1").fetchone()
-    return str(row["id"]) if row else None
+def _cabin_id(conn: sqlite3.Connection) -> str:
+    """The cabin node to analyse; ``C1`` before any has reported (the fallback may fill it)."""
+    return sensors.cabin_node(conn)
 
 
 def _analyse_crew(
@@ -455,17 +458,24 @@ def _analyse_cabin(
 ) -> CabinView:
     t = float(t_min + MINUTE)
     t_from = t - p.window_min * MINUTE
-    cabin = CabinView(id=_cabin_id(conn))
+    cid = _cabin_id(conn)
+    cabin = CabinView(id=cid)
     cabin.radiation_streak = int(state["radiation"]["streak"])
-    if cabin.id is None:
-        return cabin
-    cid = cabin.id
-    ppm = _mean(conn, cid, "co2", t_from, t)
+    cabin.offline = sensors.offline(conn, cid)
+
+    def read(metric: str) -> float | None:
+        # Real readings, with the simulator's filling in for a failed sensor.
+        value, simulated = sensors.window_mean(conn, cid, metric, t_from, t)
+        if simulated:
+            cabin.simulated.add(metric)
+        return value
+
+    ppm = read("co2")
     if ppm is not None:
         cabin.co2 = ppm_to_mmhg(ppm, th.cabin_pressure_mmhg)
-    cabin.voc = _mean(conn, cid, "voc", t_from, t)
-    cabin.temp = _mean(conn, cid, "temp_c", t_from, t)
-    cabin.cpm = _mean(conn, cid, "cpm", t_from, t)
+    cabin.voc = read("voc")
+    cabin.temp = read("temp_c")
+    cabin.cpm = read("cpm")
 
     for name, metric in (("co2_0", "co2_mmhg"), ("voc0", "voc"), ("temp0", "temp_c")):
         base = _baseline(conn, cid, metric)
@@ -495,21 +505,21 @@ def _radiation(
     if rad["last_window"] is not None and window <= rad["last_window"]:
         return
     start, end = window * window_s, (window + 1) * window_s
-    row = conn.execute(
-        "SELECT SUM(c10s) AS counts, COUNT(c10s) AS n, AVG(cpm) AS cpm, COUNT(cpm) AS n_cpm "
-        "FROM raw_cabin WHERE id = ? AND t_meas >= ? AND t_meas < ?",
-        (cid, start, end),
-    ).fetchone()
+    # Real counts, or the simulator's while the Geiger counter is offline.
+    total, n, sim_counts = sensors.window_sum(conn, cid, "c10s", start, end)
+    cpm_total, n_cpm, sim_cpm = sensors.window_sum(conn, cid, "cpm", start, end)
     expected = window_s / 10.0  # one message every 10 s
-    if row["n"] and row["n"] >= expected / 2:
-        counts = float(row["counts"]) * expected / float(row["n"])  # scale for gaps
-    elif row["n_cpm"] and row["n_cpm"] >= expected / 2:
-        counts = float(row["cpm"]) * window_s / 60.0
+    if n and n >= expected / 2:
+        counts = total * expected / n  # scale for gaps
+        simulated = sim_counts
+    elif n_cpm and n_cpm >= expected / 2:
+        counts = cpm_total / n_cpm * window_s / 60.0
+        simulated = sim_cpm
     else:
         return  # not enough of this window arrived to judge it
     rad["last_window"] = window
 
-    if base is None:  # the first full window sets the baseline
+    if base is None:  # the first full window sets the baseline, simulated or not
         _learn(conn, cid, "rad_window", counts, float(end), 10.0)
         cabin.cpm0 = counts * 60.0 / window_s
         return
@@ -518,7 +528,8 @@ def _radiation(
         rad["streak"] = int(rad["streak"]) + 1
     else:
         rad["streak"] = 0
-        _learn(conn, cid, "rad_window", counts, float(end), 10.0)
+        if not simulated:  # simulated counts never retrain a real baseline
+            _learn(conn, cid, "rad_window", counts, float(end), 10.0)
     cabin.radiation_streak = int(rad["streak"])
 
 
@@ -571,10 +582,21 @@ def _levels(tick: Tick, state: dict[str, Any], p: Params, th: Thresholds) -> dic
 
 
 def _learn_cabin(conn: sqlite3.Connection, tick: Tick, p: Params) -> None:
-    """Cabin baselines learn only while their card is green."""
+    """Cabin baselines learn only while their card is green, and only from real readings.
+
+    Simulated values may start a baseline that does not exist yet, so a cabin that has never
+    reported still gets numbers to compare against, but they never retrain a real one.
+    """
     cabin = tick.cabin
     if cabin.id is None:
         return
+    cid = cabin.id
+
+    def learn(metric: str, source: str, value: float) -> None:
+        if source in cabin.simulated and _baseline(conn, cid, metric) is not None:
+            return
+        _learn(conn, cid, metric, value, tick.t, p.half_life_min)
+
     if tick.levels["air"] == "green":
         # A rise that has not reached the yellow line yet must not become the new normal.
         rising = (
@@ -583,11 +605,11 @@ def _learn_cabin(conn: sqlite3.Connection, tick: Tick, p: Params) -> None:
             and cabin.co2 - cabin.co2_0 >= p.cabin_co2_shift_mmhg
         )
         if cabin.co2 is not None and not rising:
-            _learn(conn, cabin.id, "co2_mmhg", cabin.co2, tick.t, p.half_life_min)
+            learn("co2_mmhg", "co2", cabin.co2)
         if cabin.voc is not None:
-            _learn(conn, cabin.id, "voc", cabin.voc, tick.t, p.half_life_min)
+            learn("voc", "voc", cabin.voc)
     if tick.levels["thermal"] == "green" and cabin.temp is not None:
-        _learn(conn, cabin.id, "temp_c", cabin.temp, tick.t, p.half_life_min)
+        learn("temp_c", "temp_c", cabin.temp)
 
 
 # --------------------------------------------------------------------------- attribution
@@ -725,6 +747,9 @@ def _card(
         voc_limit = th.value("air.voc_index.yellow")
         if cabin.co2 is None and cabin.voc is None:
             reason = "No cabin air data in the last 5 min."
+        elif cabin.co2 is None and level == "green":
+            voc_base = "" if cabin.voc0 is None else f", baseline {cabin.voc0:.0f}"
+            reason = f"No CO2 reading in the last 5 min; VOC index {cabin.voc:.0f}{voc_base}."
         elif level == "yellow" and (cabin.co2 is None or cabin.co2 < th.co2_mmhg("yellow")):
             co2_part = "" if cabin.co2 is None else f"; cabin CO2 {cabin.co2:.1f} mmHg"
             reason = f"VOC index {cabin.voc:.0f}, above the {voc_limit:.0f} yellow line{co2_part}."
@@ -754,7 +779,33 @@ def _card(
         "numbers": numbers,
         "detector": {"name": name, "state": det_state, "detail": detail},
         "model": None,
+        "fallback": _fallback(cabin, domain),
         "_facts": facts,
+    }
+
+
+# Sensors behind each card's numbers (particulates are informational, not shown on a card).
+CARD_SENSORS = {"air": ("scd41", "sgp40"), "thermal": ("scd41",), "radiation": ("geiger",)}
+
+
+def _fallback(cabin: CabinView, domain: str) -> dict[str, Any] | None:
+    """The warning for a card fed by an offline sensor, or None when its sensors are fine."""
+    down = [s for s in CARD_SENSORS.get(domain, ()) if s in cabin.offline]
+    if not down:
+        return None
+    since = min(cabin.offline[s] for s in down)
+    names = " and ".join(sensors.SENSORS[s].name for s in down)
+    readings = " and ".join(sensors.SENSORS[s].readings for s in down)
+    simulated = any(m in cabin.simulated for s in down for m in sensors.SENSORS[s].metrics)
+    when = tpl.clock(since)
+    if simulated:
+        sentence = f"{names} offline since {when}; {readings} shown are simulated."
+    else:
+        sentence = f"{names} offline since {when}; no {readings} are arriving."
+    return {
+        "sensors": [sensors.SENSORS[s].name for s in down],
+        "since_t": since,
+        "sentence": sentence,
     }
 
 

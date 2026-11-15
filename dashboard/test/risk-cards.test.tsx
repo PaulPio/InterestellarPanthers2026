@@ -92,3 +92,26 @@ describe("risk cards", () => {
     expect(within(screen.getByTestId("card-cardio")).getByText(/—/)).toBeInTheDocument();
   });
 });
+
+describe("sensor fallback", () => {
+  it("marks a card fed by an offline sensor and keeps its color", () => {
+    const s: Status = status("sensor_fallback");
+    renderRoute("/", polled(s));
+    const radiation = screen.getByTestId("card-radiation");
+    expect(radiation).toHaveAttribute("data-level", "green");
+    expect(within(radiation).getByTestId("fallback-chip-radiation")).toHaveTextContent(
+      "Sensor offline",
+    );
+    expect(within(radiation).getByTestId("fallback-radiation")).toHaveTextContent(
+      "Geiger counter offline since 09:48; radiation proxy counts shown are simulated.",
+    );
+    for (const domain of ["cardio", "air", "thermal"]) {
+      expect(screen.queryByTestId(`fallback-chip-${domain}`)).toBeNull();
+    }
+  });
+
+  it("shows no warning when a card has no fallback", () => {
+    renderRoute("/", polled(status("all_green")));
+    expect(screen.queryByText("Sensor offline")).toBeNull();
+  });
+});

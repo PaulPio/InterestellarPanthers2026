@@ -30,7 +30,7 @@ Everything downstream of MQTT cannot tell hardware from simulator, except the `s
 
 | Path | What it is | Status |
 |---|---|---|
-| `contracts/` | MQTT topics and schemas, `/api` schemas, `thresholds.yaml`, replay CSV format | Frozen at v1.1.0 |
+| `contracts/` | MQTT topics and schemas, `/api` schemas, `thresholds.yaml`, replay CSV format | v1.2.0 (1.2.0 added the optional card `fallback`) |
 | `firmware/ccm_cabin_node/` | ESP32 cabin node (Arduino): SCD41, SGP40, PMS5003, Geiger | Working; see `firmware/README.md` |
 | `sim/` (`ccm_sim`) | Simulator, 11 scenarios, expectation oracle, **mock API** | Done |
 | `gateway/` (`ccm_gateway`) | Pi services: SQLite store (the only database), ingest, analytics, local API, public read-only API | Done (analytics v1) |

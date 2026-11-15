@@ -17,7 +17,7 @@ authentication, and an NTP server on the same address (`firmware/ccm_cabin_node/
 | `hotspot.env.example` | Template for `/etc/ccm/hotspot.env` (SSID and password) |
 | `chrony-ccm.conf` | Serves time to `192.168.4.0/24` |
 | `ccm.env.example` | Template for `/etc/ccm/ccm.env` (every `CCM_*` setting) |
-| `ccm-*.service` | Five systemd units: ingest, analytics, API, public read-only API, simulated crew |
+| `ccm-*.service` | Six systemd units: ingest, analytics, sensor fallback, API, public read-only API, simulated crew |
 | `README.md` | This runbook |
 
 ## 1. Before you start
@@ -113,7 +113,7 @@ In `firmware/ccm_cabin_node/`:
 Services:
 
 ```bash
-systemctl status ccm-ingest ccm-analytics ccm-api ccm-public ccm-sim-crew
+systemctl status ccm-ingest ccm-analytics ccm-fallback ccm-api ccm-public ccm-sim-crew
 journalctl -u ccm-api -n 50 --no-pager
 ```
 
@@ -173,6 +173,24 @@ The public API answers only `GET /api/*` with the right key, so nobody on the in
 approve, check in or change settings. When the Pi is off, the website falls back to its
 simulator demo.
 
+## 10. Sensor fallbacks
+
+`ccm-fallback` keeps the dashboard working when a cabin sensor fails. Every 10 s it checks each
+sensor of the cabin node (SCD41, SGP40, PMS5003, Geiger counter). A sensor is offline when it has
+sent nothing for `CCM_FALLBACK_STALE_S` seconds, or, for the Geiger counter, when it has counted
+nothing for two minutes (a working tube counts about 18 per minute). While a sensor is offline,
+the simulator supplies its readings (scenario `CCM_FALLBACK_SCENARIO`) and the dashboard card it
+feeds shows **Sensor offline** with a sentence saying its readings are simulated. The card keeps
+its color, computed from the values shown. Real readings take over again as soon as the sensor
+returns. If the whole cabin node is off, every cabin reading is simulated.
+
+To test it, unplug one sensor (or flash the node with `GEIGER_ENABLED 0`) and watch the card within
+a minute; plug it back in and the warning clears. Changes are logged on the Events page and in
+`journalctl -u ccm-fallback`.
+
+Set `CCM_FALLBACK_SCENARIO=solar_particle_event` in `/etc/ccm/ccm.env` and restart `ccm-fallback`
+to demo a radiation spike while no real Geiger counter is connected.
+
 ## Services
 
 | Unit | Command | Runs as |
@@ -181,6 +199,7 @@ simulator demo.
 | `ccm-analytics.service` | `/opt/ccm/venv/bin/ccm-gateway analytics` | `ccm` |
 | `ccm-api.service` | `/opt/ccm/venv/bin/ccm-gateway api` | `ccm` |
 | `ccm-public.service` | `/opt/ccm/venv/bin/ccm-gateway public` (only when `CCM_PUBLIC_KEY` is set) | `ccm` |
+| `ccm-fallback.service` | `/opt/ccm/venv/bin/ccm-gateway fallback` | `ccm` |
 | `ccm-sim-crew.service` | `/opt/ccm/venv/bin/ccm-sim run --scenario quiet_day --crew W1,W2,W3 --no-cabin --broker 127.0.0.1:1883` | `ccm` |
 
 All units read `/etc/ccm/ccm.env`. They restart on failure; `ccm-sim-crew` restarts always, because its 24-hour scenario ends.
@@ -198,6 +217,7 @@ All units read `/etc/ccm/ccm.env`. They restart on failure; `ccm-sim-crew` resta
 | `CCM_DASHBOARD_DIST` | `/opt/ccm/dashboard/dist` |
 | `CCM_RAW_RETENTION_DAYS` | `7` |
 | `CCM_PUBLIC_PORT` / `CCM_PUBLIC_KEY` | `8001` / blank |
+| `CCM_FALLBACK_SCENARIO` / `CCM_FALLBACK_STALE_S` | `quiet_day` / `60` |
 
 The public API stays off while `CCM_PUBLIC_KEY` is blank.
 

@@ -204,4 +204,18 @@ export interface Card {
     beta2: number;
     fitted_t: number;
   };
+  /**
+   * optional (1.2.0): set while a sensor behind this card is offline; its readings, if any, come from the simulator
+   */
+  fallback?: null | {
+    /**
+     * @minItems 1
+     */
+    sensors: [string, ...string[]];
+    /**
+     * unix seconds the first of them went offline
+     */
+    since_t: number;
+    sentence: string;
+  };
 }

@@ -1,0 +1,19 @@
+[Unit]
+Description=CCM sensor fallback (the simulator fills in for any failed cabin sensor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ccm
+Group=ccm
+EnvironmentFile=/etc/ccm/ccm.env
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/var/lib/ccm
+ExecStart=/opt/ccm/venv/bin/ccm-gateway fallback
+# The scenario ends and starts over by itself; restart whatever happens.
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -44,6 +44,13 @@ CREATE TABLE IF NOT EXISTS node_status (
   PRIMARY KEY (node, id)
 );
 
+-- Health of each cabin sensor, kept by the fallback service (sensors.assess). While a sensor is
+-- offline the simulator's values for it are stored under the rollup subject '<node>:sim'.
+CREATE TABLE IF NOT EXISTS sensor_status (
+  node TEXT NOT NULL, sensor TEXT NOT NULL, state TEXT NOT NULL, since_t REAL NOT NULL,
+  PRIMARY KEY (node, sensor)
+);
+
 CREATE TABLE IF NOT EXISTS crew (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, enrolled_t REAL NOT NULL
 );

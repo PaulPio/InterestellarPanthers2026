@@ -18,6 +18,8 @@ class Settings:
     raw_retention_days: int
     public_port: int
     public_key: str | None
+    fallback_scenario: str = "quiet_day"
+    fallback_stale_s: float = 60.0
 
 
 def load_settings() -> Settings:
@@ -32,4 +34,6 @@ def load_settings() -> Settings:
         raw_retention_days=int(env("CCM_RAW_RETENTION_DAYS", "7")),
         public_port=int(env("CCM_PUBLIC_PORT", "8001")),
         public_key=env("CCM_PUBLIC_KEY") or None,
+        fallback_scenario=env("CCM_FALLBACK_SCENARIO", "quiet_day"),
+        fallback_stale_s=float(env("CCM_FALLBACK_STALE_S", "60")),
     )

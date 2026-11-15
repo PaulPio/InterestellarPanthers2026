@@ -26,7 +26,7 @@ from ccm_gateway.analytics import MINUTE, Params, _load_state, analyse_minute
 from ccm_gateway.db import add_sample, connect
 
 WEARABLE_METRICS = ("hr", "spo2", "skin_c", "act")
-CABIN_METRICS = ("co2", "temp_c", "rh", "voc", "pm25", "cpm")
+CABIN_METRICS = ("co2", "temp_c", "rh", "voc", "pm25", "cpm", "c10s")
 SEED_HOURS = 24.0
 SKIP = {"quiet_week"}  # seven days of data; covered by quiet_day for the false-alarm count
 

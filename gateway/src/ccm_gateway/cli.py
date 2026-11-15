@@ -1,4 +1,4 @@
-"""Command line for the gateway: ``ccm-gateway ingest | analytics | api | public``."""
+"""Command line for the gateway: ``ccm-gateway ingest | analytics | fallback | api | public``."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("ingest", help="subscribe to MQTT and store messages")
     sub.add_parser("analytics", help="keep baselines, risk cards and the status snapshot")
     sub.add_parser("public", help="serve the read-only API the public website reads")
+    sub.add_parser("fallback", help="simulate any cabin sensor that has failed")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     settings = load_settings()
@@ -28,6 +29,8 @@ def main(argv: list[str] | None = None) -> None:
         _analytics(settings)
     elif args.command == "public":
         _public(settings)
+    elif args.command == "fallback":
+        _fallback(settings)
     else:
         raise SystemExit(2)
 
@@ -51,6 +54,12 @@ def _public(settings: Settings) -> None:
     app = create_public_app(conn, settings, settings.public_key)
     # Loopback only: Tailscale Funnel connects from this machine, nothing else should.
     uvicorn.run(app, host="127.0.0.1", port=settings.public_port)
+
+
+def _fallback(settings: Settings) -> None:
+    from ccm_gateway.fallback import run
+
+    run(settings)
 
 
 def _analytics(settings: Settings) -> None:

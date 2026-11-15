@@ -17,7 +17,7 @@ repository root after `make setup`.
 
 The contract is the agreement between the lanes. Read `contracts/README.md` first. It lists every
 topic, field and unit, and the API routes with their schemas in `contracts/api/`. The version is in
-`contracts/VERSION` (1.1.0) and the history in `contracts/CHANGELOG.md`.
+`contracts/VERSION` (1.2.0) and the history in `contracts/CHANGELOG.md`.
 
 - MQTT carries JSON only (D3). Topics, QoS and retention are in `contracts/mqtt/topics.yaml`;
   schemas are `contracts/mqtt/*.schema.json`.

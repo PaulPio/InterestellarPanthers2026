@@ -22,6 +22,7 @@ from ccm_sim.units import DEFAULT_CABIN_PRESSURE_MMHG, ppm_to_mmhg
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+from ccm_gateway import sensors
 from ccm_gateway.config import Settings
 
 LEARNING_S = 7200.0
@@ -321,10 +322,17 @@ def _history(
     thresholds: Thresholds | None,
 ) -> dict[str, Any]:
     unit, is_crew, rollup_metric = METRICS[metric]
-    subject = crew if is_crew else _cabin_subject(conn, rollup_metric)
+    subject = crew if is_crew else (_cabin_subject(conn, rollup_metric) or sensors.cabin_node(conn))
     t_hi = _clock(conn)
     t_lo = t_hi - hours * 3600.0
-    points = _points(conn, subject, rollup_metric, t_lo, t_hi, step) if subject else []
+    if not subject:
+        points = []
+    elif is_crew:
+        points = _points(conn, subject, rollup_metric, t_lo, t_hi, step)
+    else:
+        # Real readings, with the simulator's filling in while a sensor is offline.
+        minutes = sensors.minute_rows(conn, subject, rollup_metric, t_lo, t_hi + 1)
+        points = _bucket_minutes(minutes, step)
     if metric == "co2_mmhg":
         points = [
             {
@@ -344,6 +352,21 @@ def _history(
         "cusum": None,
         "limits": _limits(metric, thresholds),
     }
+
+
+def _bucket_minutes(minutes: list[sensors.Minute], step: float) -> list[dict[str, float]]:
+    buckets: dict[float, list[sensors.Minute]] = {}
+    for m in minutes:
+        buckets.setdefault(math.floor(m.t_min / step) * step, []).append(m)
+    return [
+        {
+            "t": start,
+            "mean": sum(m.total for m in group) / sum(m.n for m in group),
+            "min": min(m.min for m in group),
+            "max": max(m.max for m in group),
+        }
+        for start, group in buckets.items()
+    ]
 
 
 def _points(
@@ -566,7 +589,7 @@ def _cabin_subject(conn: sqlite3.Connection, rollup_metric: str) -> str | None:
     found = conn.execute(
         """
         SELECT subject FROM rollup_1m
-        WHERE metric = ? AND subject NOT LIKE 'W%'
+        WHERE metric = ? AND subject NOT LIKE 'W%' AND subject NOT LIKE '%:sim'
         ORDER BY t_min DESC LIMIT 1
         """,
         (rollup_metric,),

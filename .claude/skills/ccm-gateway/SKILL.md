@@ -1,6 +1,6 @@
 ---
 name: ccm-gateway
-description: Use when working on the Crew Context Monitor gateway that runs on the Raspberry Pi (gateway/, ccm_gateway) - the SQLite tables, MQTT ingest, the per-minute analytics that set the cardio/air/thermal/radiation card levels and attribution, the /api service, the read-only public API the website reads, or when a card turns the wrong color or a scenario evaluation fails.
+description: Use when working on the Crew Context Monitor gateway that runs on the Raspberry Pi (gateway/, ccm_gateway) - the SQLite tables, MQTT ingest, the per-minute analytics that set the cardio/air/thermal/radiation card levels and attribution, the /api service, the read-only public API the website reads, sensor fallbacks (the simulator standing in for a failed cabin sensor), or when a card turns the wrong color or a scenario evaluation fails.
 ---
 
 # CCM gateway (`gateway/`, package `ccm_gateway`)
@@ -17,6 +17,8 @@ Every service is a separate process sharing one SQLite file (WAL mode). Settings
 | `analytics.py` | One pass per complete minute → card levels, events, `kv['status']` | v1 done |
 | `api.py` | FastAPI over SQLite with the contract's `/api` shapes; `learning_status()` fallback | Done |
 | `cli.py` | `ccm-gateway ingest | analytics | api | public` | Done |
+| `sensors.py` | Cabin sensor health (`assess`, `offline`), `sensor_status` table, and the real-else-simulated reader (`minute_rows`, `window_mean`, `window_sum`) | Done |
+| `fallback.py` | `ccm-gateway fallback`: runs a simulator scenario in real time and stores only offline sensors' values under subject `<node>:sim` | Done |
 | `public.py` | Read-only copy of the API (GET only, bearer key, loopback :8001) that Tailscale Funnel publishes for the website | Done |
 | `evalsim.py` | Score analytics against the simulator's scenario expectations | Done |
 
@@ -40,6 +42,10 @@ On the Pi each command is a systemd unit (`deploy/pi/`, runbook in `deploy/pi/RE
 so late or buffered data lands where it belongs. Analytics also writes derived per-minute rows
 into `rollup_1m`: `prv`, `hr_resid`, and `ibi_ssd` (sum of squared successive beat differences in
 `total`, pair count in `n`, so RMSSD over any window is `sqrt(sum(total) / sum(n))`).
+
+## Sensor fallbacks (`sensors.py`, `fallback.py`)
+
+When a cabin sensor fails, the firmware leaves its fields out; a disconnected Geiger counter keeps sending `c10s: 0`. `sensors.assess` marks a sensor offline when its probe field (`co2`, `voc`, `pm25`, `c10s`) has been missing for `CCM_FALLBACK_STALE_S` (60 s), or the Geiger has counted nothing for 120 s, and logs a `node` event on every change. The fallback service stores the simulator's values for offline sensors only, under rollup subject `C1:sim`. **Real data always wins**: `minute_rows` takes the real minute when it has data and the simulated one only to fill a hole; a real count minute of 0 yields to a simulated one. Analytics and `/api/history` read cabin metrics only through these helpers. Cards fed by an offline sensor (air: SCD41, SGP40; thermal: SCD41; radiation: Geiger) get the optional `fallback` object; their level is still computed from the values shown. Simulated values may start a cabin baseline that doesn't exist yet but never retrain an existing one.
 
 ## Analytics (`analytics.py`)
 

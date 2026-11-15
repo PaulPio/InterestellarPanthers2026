@@ -1,6 +1,6 @@
 # Contracts
 
-Version: see [VERSION](VERSION) (1.1.0). Changes: [CHANGELOG.md](CHANGELOG.md).
+Version: see [VERSION](VERSION) (1.2.0). Changes: [CHANGELOG.md](CHANGELOG.md).
 
 These files are the agreement between the simulator, the mock API, the real backend and the dashboard. Times are unix seconds (float). Levels are `green`, `yellow`, `red`. Domains are `cardio`, `air`, `thermal`, `radiation`.
 

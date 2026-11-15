@@ -126,7 +126,18 @@ export function RiskCard({ card, staleAge = null }: { card: Card; staleAge?: str
         <h2 className="truncate text-xs font-semibold tracking-wide uppercase">
           {DOMAIN_NAME[card.domain]}
         </h2>
-        <LevelBadge level={card.level} />
+        <span className="flex shrink-0 items-center gap-1.5">
+          {card.fallback ? (
+            <span
+              data-testid={`fallback-chip-${card.domain}`}
+              title={card.fallback.sentence}
+              className="readout inline-flex h-4 items-center border border-level-yellow-mark px-1 text-[0.5625rem] tracking-wide uppercase"
+            >
+              Sensor offline
+            </span>
+          ) : null}
+          <LevelBadge level={card.level} />
+        </span>
       </div>
       <div className={staleAge ? "opacity-55" : ""}>
         <div aria-hidden="true" className={`${COLS} mt-1 h-3.5 border-b border-line`}>
@@ -139,7 +150,22 @@ export function RiskCard({ card, staleAge = null }: { card: Card; staleAge?: str
             <NumberRow key={n.label} n={n} flagged={i === flagged} level={card.level} />
           ))}
         </dl>
-        <p className="mt-1.5 line-clamp-3 text-[0.6875rem] leading-[0.9375rem]">{card.reason}</p>
+        {card.fallback ? (
+          <p
+            data-testid={`fallback-${card.domain}`}
+            className="mt-1 flex items-start gap-1 text-[0.625rem] leading-[0.8125rem] text-level-yellow"
+          >
+            <span aria-hidden="true">⚠</span>
+            <span className="line-clamp-2">{card.fallback.sentence}</span>
+          </p>
+        ) : null}
+        <p
+          className={`mt-1.5 text-[0.6875rem] leading-[0.9375rem] ${
+            card.fallback ? "line-clamp-2" : "line-clamp-3"
+          }`}
+        >
+          {card.reason}
+        </p>
       </div>
       {card.action ? (
         <p className="mt-auto line-clamp-2 border-t border-line pt-1 text-[0.6875rem] leading-[0.9375rem] text-muted">
