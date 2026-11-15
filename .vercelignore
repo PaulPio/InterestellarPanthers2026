@@ -1,0 +1,14 @@
+.venv
+.worktrees
+**/node_modules
+data
+desktop
+firmware
+gateway
+deploy
+docs
+opencode.json
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache

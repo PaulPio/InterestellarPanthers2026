@@ -1,0 +1,3 @@
+{"node":"wearable","id":"W1","seq":12,"t_node":1794715000,"hr":72,"spo2":97,"skin_c":33.41,"act":0.214,"motion":false,"ibi":[830,845,812,861,840],"batt":null}
+{"node":"wearable","id":"W1","seq":13,"t_node":1794715005,"hr":null,"spo2":null,"skin_c":33.38,"act":0.198,"motion":false,"ibi":[],"batt":null,"finger":false}
+{"node":"wearable","id":"W1","seq":2,"t_node":37,"hr":68,"spo2":null,"skin_c":null,"act":5.1,"motion":true,"ibi":[880,870],"batt":null}

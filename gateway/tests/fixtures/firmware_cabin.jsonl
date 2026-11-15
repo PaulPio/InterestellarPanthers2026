@@ -1,0 +1,4 @@
+{"node":"cabin","id":"C1","seq":902,"t_node":1794690000,"co2":812,"co2_mmhg":0.62,"temp_c":22.1,"rh":41,"voc":105,"pm1":2,"pm25":4,"pm10":6,"cpm":18,"c10s":3}
+{"node":"cabin","id":"C1","seq":3,"t_node":0,"co2":640,"co2_mmhg":0.49,"temp_c":23.4,"rh":48,"c10s":2}
+{"node":"cabin","id":"C1","seq":4,"t_node":1794690040,"c10s":0}
+{"node":"cabin","id":"C1","seq":5,"t_node":1794690050,"voc":98,"pm1":1,"pm25":3,"pm10":3,"cpm":14,"c10s":1}

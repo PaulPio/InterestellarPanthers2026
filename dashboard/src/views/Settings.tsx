@@ -3,9 +3,13 @@ import { api } from "../api/client";
 import type { Settings as SettingsData, Status } from "../api/types.gen";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { LearningBadge } from "../components/LevelBadge";
+import { isNoData, sourceLabel } from "../components/MissionCard";
+import { useCloudInfo } from "../hooks/useCloudInfo";
 import { useStatusContext } from "../hooks/StatusContext";
-import { usePolling } from "../hooks/usePolling";
+import { STALE_MS, usePolling } from "../hooks/usePolling";
+import { setDataSource } from "../lib/dataSource";
 import { clockTime } from "../lib/format";
+import { useDataSource } from "../lib/useDataSource";
 
 type Tier = keyof SettingsData["auto_approve"];
 
@@ -21,7 +25,10 @@ const SECTIONS = [
   { id: "settings-system", label: "System" },
 ];
 
-const SOURCE_WORD: Record<Status["source_mode"], string> = { live: "Live", mock: "Simulated" };
+const SOURCES = [
+  { value: "live", label: "Live", help: "Only real readings from the Pi" },
+  { value: "demo", label: "Demo", help: "A scripted scenario, in this browser only" },
+] as const;
 const THRESHOLD_WORD: Record<Status["thresholds_status"], string> = {
   provisional: "Provisional",
   final: "Final",
@@ -94,8 +101,10 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function Settings() {
-  const { data, error } = usePolling((s) => api.settings(s), 30_000);
+  const source = useDataSource();
+  const cloud = useCloudInfo();
   const { data: status } = useStatusContext();
+  const { data, error } = usePolling((s) => api.settings(s), 30_000, STALE_MS, source);
   const [latest, setLatest] = useState<SettingsData | null>(null);
   const settings = latest ?? data;
 
@@ -171,6 +180,54 @@ export default function Settings() {
           Who the monitor watches, what goes to Earth without asking, and the state of the system.
         </p>
       </header>
+
+      {cloud ? (
+        <Section
+          id="settings-source"
+          label="Data source"
+          title="Data source"
+          description="Live shows only real readings from the Pi, and no data when the Pi is not answering. Demo plays a scripted scenario in this browser only."
+          aside={<Chip>{source === "live" ? "Live" : "Demo"}</Chip>}
+        >
+          <ul className="divide-y divide-line">
+            {SOURCES.map((o) => (
+              <li key={o.value}>
+                <label className="flex min-h-14 cursor-pointer items-center gap-4 px-4 py-2 hover:bg-[rgba(124,158,240,0.07)]">
+                  <input
+                    type="radio"
+                    name="data-source"
+                    value={o.value}
+                    checked={source === o.value}
+                    onChange={() => setDataSource(o.value)}
+                    aria-describedby={`source-help-${o.value}`}
+                    className="h-4 w-4 accent-accent"
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-sm font-semibold">{o.label}</span>
+                    <span
+                      id={`source-help-${o.value}`}
+                      aria-hidden="true"
+                      className="text-xs text-muted"
+                    >
+                      {o.help}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {source === "live" && !cloud.pi_configured ? (
+            <p role="status" className="border-t border-line px-4 py-2 text-xs">
+              The public site is not connected to the Pi yet, so Live shows no data.
+            </p>
+          ) : null}
+          {source === "live" && cloud.pi_configured && isNoData(status) ? (
+            <p role="status" className="border-t border-line px-4 py-2 text-xs">
+              The Pi is not answering, so Live shows no data until it does.
+            </p>
+          ) : null}
+        </Section>
+      ) : null}
 
       {!settings ? (
         <p className="pane px-4 py-6 text-muted">
@@ -364,7 +421,9 @@ export default function Settings() {
               ) : (
                 <>
                   <dl className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-3">
-                    <Fact label="Data source">{SOURCE_WORD[status.source_mode]}</Fact>
+                    <Fact label="Source">
+                      {sourceLabel(status.source_mode, source, cloud !== null, isNoData(status))}
+                    </Fact>
                     <Fact label="Thresholds">{THRESHOLD_WORD[status.thresholds_status]}</Fact>
                     <Fact label="Nodes reporting">
                       <span className="readout">
