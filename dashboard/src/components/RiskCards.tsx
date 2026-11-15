@@ -117,7 +117,7 @@ export function RiskCard({ card, staleAge = null }: { card: Card; staleAge?: str
       to={`/domain/${card.domain}`}
       data-testid={`card-${card.domain}`}
       data-level={card.level}
-      className={`relative flex h-44 flex-col overflow-hidden pane pane-flush pt-1.5 pr-2.5 pb-2 pl-3 hover:border-line-strong hover:bg-panel-2 ${
+      className={`risk-card relative flex h-44 flex-col overflow-hidden pane pane-flush pt-1.5 pr-2.5 pb-2 pl-3 ${
         card.level === "red" ? "pulse-once" : ""
       }`}
     >

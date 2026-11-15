@@ -1,91 +1,50 @@
 @import "tailwindcss";
 
 /*
- * Design tokens, "quiet board, loud exceptions": nominal is near-monochrome blue-gray; color is
- * spent on Yellow and Red. Level colors change; layout and size never do (D14): every level also
- * shows its word and a shape. Text pairs reach at least 6:1 in both schemes, level headlines (ink
- * on a level background) at least 13:1, and level marks at least 3:1 against the panel.
+ * Design tokens, "quiet board, loud exceptions", on a midnight sky: nominal is deep blue with
+ * starlight ink; color is spent on Yellow and Red. Level colors change; layout and size never do
+ * (D14): every level also shows its word and a shape. One scheme only: the board is a night-side
+ * instrument, so it is midnight in every OS theme.
  */
 :root {
-  color-scheme: light dark;
-  --surface: #eef1f4;
-  --panel: #ffffff;
-  --panel-2: #f6f8fa;
-  --ink: #0d131a;
-  --muted: #4a5767;
-  --line: #d3dae2;
-  --line-strong: #a9b4c1;
-  --accent: #0a56b4;
-  --accent-ink: #ffffff;
-  --focus: #0d131a;
+  color-scheme: dark;
+  --surface: #050a1a;
+  --panel: #0b1430;
+  --panel-2: #132047;
+  --ink: #e9efff;
+  --muted: #a3b3d6;
+  --line: #1f2c56;
+  --line-strong: #3d5290;
+  --accent: #7cc4ff;
+  --accent-2: #a995ff;
+  --accent-ink: #041024;
+  --focus: #ffffff;
 
-  --green: #0a5530;
-  --green-bg: #ddf3e6;
-  --green-mark: #1a8a4e;
-  --yellow: #5e3e00;
-  --yellow-bg: #fff0c2;
-  --yellow-mark: #a87700;
-  --red: #8e1016;
-  --red-bg: #fce1e1;
-  --red-mark: #d02a2a;
-  --learn: #2f3b4a;
-  --learn-bg: #e4e9f0;
-  --learn-mark: #6b7889;
+  --green: #62e3a0;
+  --green-bg: #0a2a26;
+  --green-mark: #2fbf71;
+  --yellow: #ffcb57;
+  --yellow-bg: #2e2510;
+  --yellow-mark: #f2a900;
+  --red: #ff9a90;
+  --red-bg: #3b1124;
+  --red-mark: #f0443a;
+  --learn: #c6d1ea;
+  --learn-bg: #18234a;
+  --learn-mark: #8d9cc4;
 
-  --series-co2: #8a4e00;
-  --series-prv: #1d5cbb;
-  --hatch: rgba(74, 87, 103, 0.18);
+  --series-co2: #f0a845;
+  --series-prv: #7cc4ff;
+  --hatch: rgba(163, 179, 214, 0.2);
 
-  /* Pane surfaces: flat in light, glass over a deep-blue glow in dark. */
-  --pane-bg: #ffffff;
-  --pane-border: #d3dae2;
-  --pane-glow: none;
+  /* Pane surfaces: glass over the night sky, lit from above. */
+  --pane-bg: linear-gradient(180deg, rgba(22, 35, 78, 0.74) 0%, rgba(10, 18, 44, 0.78) 100%);
+  --pane-border: rgba(124, 158, 240, 0.2);
+  --pane-glow: inset 0 1px 0 rgba(170, 200, 255, 0.14), 0 14px 36px rgba(0, 0, 0, 0.42);
   --pane-radius: 0;
-  --halo-a: rgba(10, 86, 180, 0.08);
-  --halo-b: rgba(10, 86, 180, 0.04);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface: #0a0e13;
-    --panel: #11161d;
-    --panel-2: #171e27;
-    --ink: #e7ecf2;
-    --muted: #9aa7b7;
-    --line: #263040;
-    --line-strong: #3a4759;
-    --accent: #7db8ff;
-    --accent-ink: #06101c;
-    --focus: #ffffff;
-
-    --green: #62e3a0;
-    --green-bg: #0d271b;
-    --green-mark: #2fbf71;
-    --yellow: #ffcb57;
-    --yellow-bg: #2b2108;
-    --yellow-mark: #f2a900;
-    --red: #ff948a;
-    --red-bg: #3a1013;
-    --red-mark: #f0443a;
-    --learn: #c3cedc;
-    --learn-bg: #1a2230;
-    --learn-mark: #8a98ab;
-
-    --series-co2: #f0a845;
-    --series-prv: #7db8ff;
-    --hatch: rgba(154, 167, 183, 0.2);
-
-    --surface: #070b16;
-    --panel: #0d1527;
-    --panel-2: #121c33;
-    --line: #223050;
-    --line-strong: #34466e;
-    --pane-bg: rgba(14, 22, 42, 0.72);
-    --pane-border: rgba(94, 130, 200, 0.22);
-    --pane-glow: inset 0 1px 0 rgba(140, 175, 255, 0.12), 0 12px 32px rgba(0, 0, 0, 0.35);
-    --halo-a: rgba(28, 86, 220, 0.38);
-    --halo-b: rgba(0, 170, 200, 0.16);
-  }
+  --control-radius: 0;
+  --aurora: linear-gradient(90deg, #7cc4ff 0%, #a995ff 55%, #f29ad8 100%);
+  --control-fill: linear-gradient(135deg, #8fd0ff 0%, #9aa8ff 100%);
 }
 
 @theme inline {
@@ -121,19 +80,51 @@
 
 html {
   font-size: 16px;
+  background: var(--surface);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(60rem 36rem at 12% -8%, var(--halo-a), transparent 65%),
-    radial-gradient(48rem 30rem at 100% 100%, var(--halo-b), transparent 60%), var(--surface);
+    radial-gradient(64rem 38rem at 8% -10%, rgba(40, 96, 230, 0.42), transparent 62%),
+    radial-gradient(46rem 30rem at 104% 8%, rgba(126, 87, 255, 0.24), transparent 60%),
+    radial-gradient(52rem 32rem at 82% 108%, rgba(0, 178, 214, 0.16), transparent 60%),
+    linear-gradient(180deg, #050a1a 0%, #070d26 48%, #0a1233 100%);
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   line-height: 1.35;
+}
+
+/* A fixed starfield behind everything: tiled pinpoint gradients, so no image assets. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 24px 38px, rgba(255, 255, 255, 0.85), transparent 100%),
+    radial-gradient(1px 1px at 142px 96px, rgba(190, 215, 255, 0.7), transparent 100%),
+    radial-gradient(1.4px 1.4px at 208px 22px, rgba(255, 255, 255, 0.6), transparent 100%),
+    radial-gradient(1px 1px at 86px 176px, rgba(200, 190, 255, 0.65), transparent 100%),
+    radial-gradient(1px 1px at 260px 214px, rgba(255, 255, 255, 0.5), transparent 100%),
+    radial-gradient(1.6px 1.6px at 330px 130px, rgba(170, 220, 255, 0.55), transparent 100%),
+    radial-gradient(1px 1px at 52px 300px, rgba(255, 255, 255, 0.45), transparent 100%),
+    radial-gradient(1px 1px at 300px 330px, rgba(255, 240, 220, 0.5), transparent 100%);
+  background-size: 380px 380px;
+  opacity: 0.55;
+}
+
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    border-radius: var(--control-radius);
+  }
 }
 
 :focus-visible {
@@ -157,15 +148,60 @@ body {
   color: var(--muted);
 }
 
-/* The top bar: frosted, and it stays put while the board scrolls. */
+/* The top bar: frosted night glass over an aurora hairline; it stays put while the board scrolls. */
 .topbar {
   border-bottom: 1px solid var(--pane-border);
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(12, 21, 52, 0.92), rgba(7, 12, 32, 0.8));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+.topbar::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 1px;
+  background: var(--aurora);
+  opacity: 0.55;
 }
 
-/* Every pane: square corners and, in dark, frosted glass with a hairline highlight and a drop glow. */
+.brand-text {
+  background: linear-gradient(90deg, #ffffff 0%, #bcd9ff 60%, #c9bbff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nav-link {
+  position: relative;
+  display: inline-flex;
+  height: 2rem;
+  align-items: center;
+  border-radius: var(--control-radius);
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.nav-link:hover {
+  background: rgba(124, 158, 240, 0.12);
+  color: var(--ink);
+}
+.nav-link[aria-current="page"] {
+  background: linear-gradient(180deg, rgba(124, 196, 255, 0.2), rgba(169, 149, 255, 0.12));
+  box-shadow: inset 0 0 0 1px rgba(124, 196, 255, 0.34);
+  color: var(--ink);
+  font-weight: 600;
+}
+.nav-link[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0.75rem 0.1875rem 0.75rem;
+  height: 2px;
+  border-radius: 0;
+  background: var(--aurora);
+}
+
+/* Every pane: night glass with a lit top edge and a soft drop shadow. */
 .pane {
   border: 1px solid var(--pane-border);
   border-radius: var(--pane-radius);
@@ -181,13 +217,132 @@ body {
 /* A pane's title strip: one dense row, the way a terminal labels each pane. */
 .panel-head {
   display: flex;
-  min-height: 1.625rem;
+  min-height: 1.875rem;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
-  padding: 0.125rem 0.5rem;
+  background: linear-gradient(
+    90deg,
+    rgba(124, 196, 255, 0.13),
+    rgba(169, 149, 255, 0.05) 55%,
+    transparent
+  );
+  padding: 0.125rem 0.625rem;
+}
+
+/* A risk card carries a faint wash of its level from the top edge; word and shape still lead. */
+.risk-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 70% at 50% -20%, var(--wash, transparent), transparent 70%);
+}
+.risk-card[data-level="green"] {
+  --wash: rgba(47, 191, 113, 0.1);
+}
+.risk-card[data-level="yellow"] {
+  --wash: rgba(242, 169, 0, 0.16);
+}
+.risk-card[data-level="red"] {
+  --wash: rgba(240, 68, 58, 0.22);
+}
+.risk-card:hover {
+  border-color: rgba(124, 196, 255, 0.5);
+}
+
+@layer components {
+  /* Shared controls. */
+  .btn {
+    display: inline-flex;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border: 1px solid var(--line-strong);
+    background: rgba(124, 158, 240, 0.08);
+    padding: 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  .btn:hover {
+    border-color: var(--accent);
+    background: rgba(124, 196, 255, 0.16);
+  }
+  .btn-primary {
+    border-color: transparent;
+    background: var(--control-fill);
+    color: var(--accent-ink);
+    box-shadow: 0 4px 16px rgba(92, 150, 255, 0.35);
+  }
+  .btn-primary:hover {
+    border-color: transparent;
+    background: linear-gradient(135deg, #b0deff 0%, #b5bfff 100%);
+  }
+  .btn-danger {
+    border-color: var(--red-mark);
+    background: var(--red-bg);
+  }
+  .btn-danger:hover {
+    border-color: var(--red);
+    background: #53162f;
+  }
+
+  .field {
+    height: 2.25rem;
+    border: 1px solid var(--line-strong);
+    background: rgba(4, 9, 26, 0.7);
+    padding: 0 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--ink);
+  }
+  .field::placeholder {
+    color: #8b9ac2;
+  }
+  .field:hover {
+    border-color: var(--accent);
+  }
+
+  /* A checkbox drawn as a switch: the track fills when on, and the knob moves to the right. */
+  .switch {
+    position: relative;
+    appearance: none;
+    -webkit-appearance: none;
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 1.375rem;
+    margin: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 0;
+    background: rgba(4, 9, 26, 0.8);
+    cursor: pointer;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0;
+    background: var(--muted);
+  }
+  .switch:checked {
+    border-color: transparent;
+    background: var(--control-fill);
+  }
+  .switch:checked::after {
+    left: calc(100% - 1rem - 2px);
+    background: var(--accent-ink);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .switch::after {
+      transition: left 0.15s ease;
+    }
+  }
 }
 
 /* Data that is not current: hatched over the dimmed content, always with an age label. */

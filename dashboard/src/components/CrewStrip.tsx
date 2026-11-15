@@ -38,7 +38,9 @@ export function CrewStrip() {
                 aria-pressed={isSelected}
                 onClick={() => select(c.id)}
                 className={`flex h-8 min-w-0 flex-1 items-center gap-2 border-l-2 px-2 text-left whitespace-nowrap hover:bg-panel-2 ${
-                  isSelected ? "border-accent bg-panel-2" : "border-transparent"
+                  isSelected
+                    ? "border-accent bg-[linear-gradient(90deg,rgba(124,196,255,0.16),transparent)]"
+                    : "border-transparent"
                 }`}
               >
                 <span className="min-w-0 flex-1 truncate text-xs font-semibold">{c.name}</span>
@@ -86,7 +88,7 @@ export function CrewStrip() {
               <Link
                 to={`/crew/${c.id}`}
                 aria-label={`Open ${c.name}'s page`}
-                className="inline-flex h-6 shrink-0 items-center border border-line-strong px-2 text-[0.6875rem] font-semibold hover:bg-panel-2"
+                className="inline-flex h-6 shrink-0 items-center border border-line-strong px-2 text-[0.6875rem] font-semibold hover:border-accent hover:bg-panel-2"
               >
                 Open →
               </Link>
