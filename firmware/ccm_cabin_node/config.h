@@ -6,11 +6,14 @@
 #define NODE_ID            "C1"
 #define FW_VERSION         "0.3.0"
 
-// ---------- Network (the Pi's hostapd hotspot) ----------
+// ---------- Network ----------
 // WIFI_SSID and WIFI_PASS live in secrets.h, which git ignores.
-// Copy secrets.example.h to secrets.h and fill it in.
+// Copy secrets.example.h to secrets.h and fill it in. secrets.h may also set MQTT_HOST and
+// MQTT_ENABLED for the network you are on; the defaults below are for the Pi's own hotspot.
 #include "secrets.h"
-#define MQTT_HOST          "192.168.4.1"     // TODO: the Pi's address on its own hotspot
+#ifndef MQTT_HOST
+#define MQTT_HOST          "192.168.4.1"     // the Pi's address on its own hotspot
+#endif
 #define MQTT_PORT          1883
 // The node keeps measured time, so it needs a clock. The Pi is offline, so the
 // Pi itself must serve NTP on the hotspot (chrony with an "allow" line).
@@ -26,8 +29,11 @@
 #define LOG_BUFFER_BYTES   8192       // about the last 70 sensor lines are kept for late joiners
 
 // 0 = do not try to reach the MQTT broker. Leave at 0 until the Pi is set up: every failed
-// attempt freezes the node (and the remote monitor) for about 3 s. Set to 1 for the real system.
+// attempt freezes the node (and the remote monitor) for about 3 s. Set to 1 for the real system
+// (here or in secrets.h).
+#ifndef MQTT_ENABLED
 #define MQTT_ENABLED       0
+#endif
 
 // ---------- MQTT topics (data contract) ----------
 #define TOPIC_TELEMETRY    "ccm/cabin/telemetry"
