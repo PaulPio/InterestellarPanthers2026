@@ -11,6 +11,7 @@ import type {
   SettingsUpdate,
   Status,
 } from "./types.gen";
+import { dataSource } from "../lib/dataSource";
 import type { ContractKind } from "./validate";
 
 /** Thrown for any non-2xx response; `detail` is the API's JSON `detail` when there is one. */
@@ -41,10 +42,14 @@ async function request<T>(
   options: { method?: string; body?: unknown; signal?: AbortSignal; kind?: ContractKind } = {},
 ): Promise<T> {
   const { method = "GET", body, signal, kind } = options;
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  // The public site skips the Pi for this browser. The Pi's API ignores the header.
+  if (method === "GET" && dataSource() === "demo") headers["ccm-source"] = "demo";
   const response = await fetch(path, {
     method,
     signal,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
@@ -110,4 +115,21 @@ export const api = {
       body,
       kind: "checkin_response",
     }),
+  /** Present on the public site only. Null when this origin is the Pi or the local mock. */
+  cloudInfo: async (signal?: AbortSignal): Promise<CloudInfo | null> => {
+    try {
+      return await request<CloudInfo>("/api/_cloud/info", { signal });
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return null;
+      throw e;
+    }
+  },
 };
+
+/** `GET /api/_cloud/info`. Not part of the dashboard contract. */
+export interface CloudInfo {
+  mode: "live" | "no_data";
+  pi_configured: boolean;
+  pi_error: string | null;
+  rotation: string[];
+}

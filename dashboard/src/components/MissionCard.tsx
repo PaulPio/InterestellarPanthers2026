@@ -1,9 +1,28 @@
 import type { Status } from "../api/types.gen";
+import { useCloudInfo } from "../hooks/useCloudInfo";
 import { useStatusContext } from "../hooks/StatusContext";
 import { clockTime } from "../lib/format";
+import { useDataSource } from "../lib/useDataSource";
 import { EarthGlobe } from "./EarthGlobe";
 
 const SOURCE_WORD: Record<Status["source_mode"], string> = { live: "Live", mock: "Simulated" };
+
+/** True for the public site's "no data" status, sent on Live while the Pi is not answering. */
+export function isNoData(status: Status | null | undefined): boolean {
+  return !!status && status.cards.every((c) => c.detector.name === "no data");
+}
+
+/** What the Source fact says. On the Pi and the local mock this is Live or Simulated. */
+export function sourceLabel(
+  mode: Status["source_mode"],
+  choice: "live" | "demo",
+  onPublicSite: boolean,
+  noData = false,
+): string {
+  if (!onPublicSite) return SOURCE_WORD[mode];
+  if (choice === "demo") return "Demo";
+  return noData ? "Live, no data from the Pi" : "Live";
+}
 const THRESHOLD_WORD: Record<Status["thresholds_status"], string> = {
   provisional: "Provisional",
   final: "Final",
@@ -29,6 +48,8 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
  */
 export function MissionCard() {
   const { data: status } = useStatusContext();
+  const choice = useDataSource();
+  const cloud = useCloudInfo();
   const crew = status?.crew ?? [];
   const online = crew.filter((c) => c.online).length;
   const learning = crew.filter((c) => c.baseline === "learning").length;
@@ -60,7 +81,9 @@ export function MissionCard() {
         </div>
         {status ? (
           <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-            <Fact label="Source">{SOURCE_WORD[status.source_mode]}</Fact>
+            <Fact label="Source">
+              {sourceLabel(status.source_mode, choice, cloud !== null, isNoData(status))}
+            </Fact>
             <Fact label="Thresholds">{THRESHOLD_WORD[status.thresholds_status]}</Fact>
             <Fact label="Baselines">{learning === 0 ? "All ready" : `${learning} learning`}</Fact>
             <Fact label="Check-in">{status.checkin_due ? "Due" : "Done"}</Fact>

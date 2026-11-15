@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, build/sim-dashboard]
+    branches: [main, build/sim-dashboard, feat/pi-gateway]
   pull_request:
 
 jobs:
