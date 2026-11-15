@@ -310,7 +310,43 @@ def _refresh_live(conn: sqlite3.Connection, stored: dict[str, Any]) -> dict[str,
         crew_out.append(refreshed)
     body["crew"] = crew_out
     body["nodes"] = _nodes(conn)
+    body["cards"] = [
+        _with_live_heart_rate(conn, card, crew_out, body["t"])
+        if card.get("domain") == "cardio"
+        else card
+        for card in stored.get("cards", [])
+    ]
     return body
+
+
+LIVE_HR_MAX_AGE_S = 15.0  # three wearable messages
+
+
+def _with_live_heart_rate(
+    conn: sqlite3.Connection, card: dict[str, Any], crew: list[dict[str, Any]], now: float
+) -> dict[str, Any]:
+    """Add "Heart rate now" from the wearable's latest message to the cardio card.
+
+    The card's other numbers come from analytics, which works on complete minutes and 5-minute
+    averages; this one is as fresh as the last message (at most 15 s old), so the dashboard shows
+    a beat-to-beat change within one 5 s poll. Null when there is no recent heart rate.
+    """
+    shown = (card.get("crew") or [m.get("id") for m in crew] or [None])[0]
+    value: float | None = None
+    if shown is not None:
+        row = conn.execute(
+            "SELECT hr, t_recv FROM raw_wearable WHERE crew = ? ORDER BY t_recv DESC LIMIT 1",
+            (shown,),
+        ).fetchone()
+        if (
+            row is not None
+            and row["hr"] is not None
+            and now - float(row["t_recv"]) <= LIVE_HR_MAX_AGE_S
+        ):
+            value = float(row["hr"])
+    numbers = [n for n in card.get("numbers", []) if n.get("label") != "Heart rate now"]
+    numbers.append({"label": "Heart rate now", "value": value, "unit": "bpm", "baseline": None})
+    return {**card, "numbers": numbers}
 
 
 def _history(

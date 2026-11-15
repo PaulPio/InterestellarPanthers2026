@@ -143,3 +143,37 @@ def test_no_finger_is_said_plainly(conn: sqlite3.Connection) -> None:
     assert (
         cardio(status(conn))["reason"] == "W1 connected; no finger on the pulse sensor for 5 min."
     )
+
+
+def live_hr(body: dict[str, Any]) -> Any:
+    return next(n["value"] for n in cardio(body)["numbers"] if n["label"] == "Heart rate now")
+
+
+def test_heart_rate_now_is_live_and_goes_blank_when_stale(conn: sqlite3.Connection) -> None:
+    for i in range(12 * 3):  # 3 minutes, steady at 65
+        wearable(conn, i, T0 + i * 5)
+    last = T0 + 36 * 5
+    msg = {
+        "node": "wearable",
+        "id": "W1",
+        "seq": 99,
+        "t_node": int(last),
+        "hr": 88,
+        "spo2": 97,
+        "skin_c": 33.4,
+        "act": 0.15,
+        "motion": False,
+        "ibi": [680, 690],
+        "batt": None,
+    }
+    store(conn, normalize(TOPIC, json.dumps(msg).encode(), last + 0.3))  # type: ignore[arg-type]
+    conn.commit()
+    body = status(conn)
+    assert live_hr(body) == 88  # the newest message, not the 5-minute average
+    rest = next(n for n in cardio(body)["numbers"] if n["label"].startswith("Resting HR"))
+    assert rest["value"] != 88
+
+    # 20 s later the cabin node still reports but the wearable is silent: no live value
+    store(conn, normalize("ccm/cabin/status", b"online", last + 20.3))  # type: ignore[arg-type]
+    conn.commit()
+    assert live_hr(status(conn)) is None
